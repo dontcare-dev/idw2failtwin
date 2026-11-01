@@ -344,7 +344,6 @@ private fun IdwApp() {
             }
         }
     }
-    }
 }
 
 @Composable
