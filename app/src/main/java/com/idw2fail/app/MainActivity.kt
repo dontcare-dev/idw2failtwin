@@ -223,7 +223,7 @@ private fun IdwApp() {
                     documentCount = docs.length(),
                     cardCount = data.entries("flashcards").length(),
                     tasks = data.entries("tasks"),
-                    notesLength = notes.length()
+                    notesLength = notes.length
                 )
                 "Notes" -> NotesScreen(notes, { notes = it }, { data.saveNotes(notes); status = "Saved on this device." }, status)
                 "Planner" -> PlannerScreen(
