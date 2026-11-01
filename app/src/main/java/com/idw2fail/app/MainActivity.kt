@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,12 +45,12 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
 
-private val Ink = Color(0xFF090A0E)
-private val Panel = Color(0xFF151820)
-private val Panel2 = Color(0xFF1B202B)
-private val Muted = Color(0xFF9299A8)
-private val Accent = Color(0xFFB7A5FF)
-private val Mint = Color(0xFF9BE7D2)
+private val Ink = Color(0xFF050505)
+private val Panel = Color(0xFF141414)
+private val Panel2 = Color(0xFF202020)
+private val Muted = Color(0xFFA3A3A3)
+private val Accent = Color(0xFFFFFFFF)
+private val Mint = Color(0xFFD0D0D0)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -179,8 +181,8 @@ private fun IdwApp() {
             NavigationBar(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xEE202431), Color(0xEE11141B))), RoundedCornerShape(24.dp))
-                    .border(1.dp, Color.White.copy(alpha = .11f), RoundedCornerShape(24.dp)),
+                    .background(Color(0xD9141414), RoundedCornerShape(24.dp))
+                    .border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(24.dp)),
                 containerColor = Color.Transparent,
                 contentColor = Color.White
             ) {
@@ -195,7 +197,7 @@ private fun IdwApp() {
                     NavigationBarItem(selected = page == item, onClick = { page = item },
                         icon = { Icon(icon, null) }, label = { Text(if (item == "Practice") "Flashcards" else item, fontSize = 10.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Accent, selectedTextColor = Accent,
-                            indicatorColor = Color(0xFF28243A), unselectedIconColor = Muted, unselectedTextColor = Muted))
+                            indicatorColor = Color.White.copy(alpha = .12f), unselectedIconColor = Muted, unselectedTextColor = Muted))
                 }
             }
         }
@@ -204,8 +206,9 @@ private fun IdwApp() {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("idw2failtwin", fontSize = 21.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
             }
-            when (page) {
-                "Home" -> HomeScreen(docs.length(), notes.isNotBlank()) { page = it }
+            Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
+            when (currentPage) {
+                "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
                 "Library" -> LibraryScreen(docs, busy, status, onAdd = { picker.launch(arrayOf("application/pdf")) }, onDelete = { data.removeDocument(it); refresh++ })
                 "Study" -> StudyScreen(question, { question = it }, answer, busy, status, onAsk = {
                     if (apiKey.isBlank()) { page = "Settings"; status = "Add your Groq API key first." }
@@ -297,50 +300,51 @@ private fun IdwApp() {
                     onImport = { backupPicker.launch(arrayOf("application/json", "text/json")) }
                 )
             }
+            }
         }
     }
 }
 
 @Composable
-private fun HomeScreen(documentCount: Int, hasNotes: Boolean, navigate: (String) -> Unit) {
-    LazyColumn(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+private fun HomeScreen(documentCount: Int, cardCount: Int, navigate: (String) -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item { Text("Home", fontSize = 30.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1).sp) }
         item {
-            
-            Spacer(Modifier.height(8.dp))
-            Text("Study", fontSize = 31.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.2).sp)
-            
-        }
-        item {
-            Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF29243D), Color(0xFF171D29), Color(0xFF142A2B))), RoundedCornerShape(26.dp)).border(1.dp, Color.White.copy(alpha = .1f), RoundedCornerShape(26.dp)).padding(20.dp)) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.AutoAwesome, null, tint = Accent); Spacer(Modifier.width(8.dp))
-                        Text("Study", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Text("Ask a question", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
-                    
-                    Button(onClick = { navigate("Study") }, colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink), shape = RoundedCornerShape(14.dp)) {
-                        Text("Open study room", fontWeight = FontWeight.SemiBold); Spacer(Modifier.width(8.dp)); Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(17.dp))
-                    }
-                }
+            Column(
+                Modifier.fillMaxWidth()
+                    .background(Color.White.copy(alpha = .07f), RoundedCornerShape(24.dp))
+                    .border(1.dp, Color.White.copy(alpha = .2f), RoundedCornerShape(24.dp))
+                    .padding(20.dp)
+            ) {
+                Text("idw2failtwin", color = Muted, fontSize = 12.sp)
+                Text("Study", fontSize = 28.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+                Button(
+                    onClick = { navigate("Study") },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(15.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
+                ) { Text("Start studying") }
             }
         }
         item {
-            Text("Overview", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatCard("Materials", documentCount.toString(), Icons.Rounded.FolderOpen, Modifier.weight(1f))
-                StatCard("Notes", if (hasNotes) "Started" else "Empty", Icons.Rounded.EditNote, Modifier.weight(1f))
+                StatCard("PDFs", documentCount.toString(), Icons.Rounded.FolderOpen, Modifier.weight(1f))
+                StatCard("Flashcards", cardCount.toString(), Icons.Rounded.Style, Modifier.weight(1f))
             }
         }
         item {
-            Text("More", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                QuickRow("PDFs", "Import study material", Icons.Rounded.UploadFile) { navigate("Library") }
-                QuickRow("Notes", "Your saved notes", Icons.Rounded.Notes) { navigate("Notes") }
-                QuickRow("AI settings", "Add your API key", Icons.Rounded.Key) { navigate("Settings") }
+            Text("Your study", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp), modifier = Modifier.padding(top = 10.dp)) {
+                QuickRow("Library", "PDFs and textbooks", Icons.Rounded.FolderOpen) { navigate("Library") }
+                QuickRow("Flashcards", "Review your cards", Icons.Rounded.Style) { navigate("Practice") }
+                QuickRow("Quizzes", "Test what you know", Icons.Rounded.Quiz) { navigate("Quizzes") }
             }
         }
-        item { Text("Study data stays on this device unless you send content to your chosen AI provider.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 12.dp)) }
     }
 }
 
@@ -362,9 +366,9 @@ private fun QuickRow(title: String, subtitle: String, icon: androidx.compose.ui.
 
 @Composable
 private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd: () -> Unit, onDelete: (String) -> Unit) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("Keep your textbooks and revision material together.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
+        Text("Library", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(14.dp))
         Button(onClick = onAdd, enabled = !busy, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
             Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(8.dp)); Text("Import a PDF", fontWeight = FontWeight.SemiBold)
         }
@@ -440,9 +444,9 @@ private fun NotesScreen(notes: String, onNotes: (String) -> Unit, onSave: () -> 
 @Composable
 private fun SettingsScreen(apiKey: String, onSave: (String) -> Unit, status: String, onExport: () -> Unit, onImport: () -> Unit) {
     var key by remember(apiKey) { mutableStateOf(apiKey) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text("Settings", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("Your app, your device, your AI provider.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
+        Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(16.dp))
         Text("AI PROVIDER", color = Accent, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
         Text("Groq API key", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
         Text("Get a key from console.groq.com. It is encrypted and saved only on this device.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp, bottom = 12.dp))
@@ -573,14 +577,12 @@ private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (
 
 @Composable
 private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onQuizzes: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text("More", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("Your study tools and app preferences.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
+        Text("More", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(16.dp))
         QuickRow("Practice quizzes", "AI-generated multiple-choice tests", Icons.Rounded.Quiz, onQuizzes)
         Spacer(Modifier.height(9.dp))
         QuickRow("Revision planner", "$taskCount study tasks", Icons.Rounded.EventNote, onPlanner)
-        Spacer(Modifier.height(9.dp))
-        QuickRow("Personal notes", "Write and save revision notes", Icons.Rounded.EditNote, onNotes)
         Spacer(Modifier.height(9.dp))
         QuickRow("Study progress", "See your saved study activity", Icons.Rounded.Insights, onProgress)
         Spacer(Modifier.height(9.dp))
@@ -650,9 +652,9 @@ private fun ProgressScreen(documentCount: Int, cardCount: Int, tasks: JSONArray,
     var completed = 0
     for (i in 0 until total) if (tasks.optJSONObject(i)?.optBoolean("done") == true) completed++
     val ratio = if (total == 0) 0f else completed.toFloat() / total.toFloat()
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text("Study progress", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("A snapshot of the work saved on this device.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
+        Text("Progress", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatCard("Materials", documentCount.toString(), Icons.Rounded.FolderOpen, Modifier.weight(1f))
             StatCard("Flashcards", cardCount.toString(), Icons.Rounded.Style, Modifier.weight(1f))
