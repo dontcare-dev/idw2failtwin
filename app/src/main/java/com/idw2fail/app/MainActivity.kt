@@ -190,7 +190,7 @@ private fun IdwApp() {
                             }
                         }
                         PDDocument.load(temp).use { pdf ->
-                            if (pdf.numberOfPages > 100) throw Exception("This PDF has \${pdf.numberOfPages} pages. Please use a file with 100 pages or fewer.")
+                            if (pdf.numberOfPages > 100) throw Exception("This PDF has ${pdf.numberOfPages} pages. Please use a file with 100 pages or fewer.")
                             val stripper = PDFTextStripper().apply { startPage = 1; endPage = pdf.numberOfPages }
                             stripper.getText(pdf).take(120000)
                         }
@@ -198,8 +198,8 @@ private fun IdwApp() {
                 }
                 if (extracted.isBlank()) throw Exception("No selectable text was found. This may be a scanned PDF.")
                 data.addDocument(name, extracted); refresh++
-                status = "PDF added · \${extracted.length} characters extracted"
-            } catch (e: Exception) { status = "Couldn't read that PDF: \${e.message ?: "Unsupported or damaged PDF."}" }
+                status = "PDF added · ${extracted.length} characters extracted"
+            } catch (e: Exception) { status = "Couldn't read that PDF: ${e.message ?: "Unsupported or damaged PDF."}" }
             finally { busy = false }
         }
     }
