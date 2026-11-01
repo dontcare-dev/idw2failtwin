@@ -350,14 +350,14 @@ private fun HomeScreen(documentCount: Int, cardCount: Int, navigate: (String) ->
 
 @Composable
 private fun StatCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Column(modifier.background(Panel, RoundedCornerShape(20.dp)).border(1.dp, Color.White.copy(alpha = .06f), RoundedCornerShape(20.dp)).padding(16.dp)) {
+    Column(modifier.background(Color.White.copy(alpha = .055f), RoundedCornerShape(20.dp)).border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(20.dp)).padding(16.dp)) {
         Icon(icon, null, tint = Accent); Spacer(Modifier.height(15.dp))
         Text(value, fontSize = 22.sp, fontWeight = FontWeight.SemiBold); Text(title, color = Muted, fontSize = 11.sp)
     }
 }
 @Composable
 private fun QuickRow(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(17.dp)).clickable(onClick = onClick).padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(Color.White.copy(alpha = .045f), RoundedCornerShape(17.dp)).border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(17.dp)).clickable(onClick = onClick).padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = Accent, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.Medium, fontSize = 13.sp); Text(subtitle, color = Muted, fontSize = 11.sp) }
         Icon(Icons.Rounded.ChevronRight, null, tint = Muted)
@@ -447,21 +447,21 @@ private fun SettingsScreen(apiKey: String, onSave: (String) -> Unit, status: Str
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
         Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(16.dp))
-        Text("AI PROVIDER", color = Accent, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+        Text("AI provider", color = Muted, fontSize = 13.sp)
         Text("Groq API key", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
         Text("Get a key from console.groq.com. It is encrypted and saved only on this device.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp, bottom = 12.dp))
         OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("gsk_…") }, singleLine = true, shape = RoundedCornerShape(15.dp), colors = fieldColors())
         Button(onClick = { onSave(key) }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) { Icon(Icons.Rounded.Lock, null); Spacer(Modifier.width(8.dp)); Text("Save securely") }
         if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
         Spacer(Modifier.height(24.dp))
-        Text("LOCAL DATA", color = Accent, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+        Text("Data", color = Muted, fontSize = 13.sp)
         Text("Study data is stored in a private JSON file inside the app. Imported PDF text is stored locally so your tutor can reference it. When you ask the AI a question, relevant text is sent to Groq.", color = Muted, fontSize = 12.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             OutlinedButton(onClick = onExport, modifier = Modifier.weight(1f), shape = RoundedCornerShape(13.dp)) { Icon(Icons.Rounded.FileDownload, null); Spacer(Modifier.width(6.dp)); Text("Export backup") }
             OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f), shape = RoundedCornerShape(13.dp)) { Icon(Icons.Rounded.FileUpload, null); Spacer(Modifier.width(6.dp)); Text("Restore backup") }
         }
         Text("Restoring replaces the current local study data. Export a backup first if you want to keep it.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 8.dp))
-        Text("Never share your API key. Anyone with access to your unlocked phone may be able to use the configured AI account.", color = Color(0xFFFFC78C), fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 14.dp))
+        Text("Never share your API key. Anyone with access to your unlocked phone may be able to use the configured AI account.", color = Color.White.copy(alpha = .78f), fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 14.dp))
     }
 }
 
@@ -666,7 +666,7 @@ private fun ProgressScreen(documentCount: Int, cardCount: Int, tasks: JSONArray,
         }
         Column(Modifier.fillMaxWidth().padding(top = 18.dp).background(Panel, RoundedCornerShape(18.dp)).border(1.dp, Color.White.copy(alpha = .06f), RoundedCornerShape(18.dp)).padding(17.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("TASK COMPLETION", color = Muted, fontSize = 10.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
+                Text("Tasks completed", color = Muted, fontSize = 12.sp)
                 Spacer(Modifier.weight(1f))
                 Text("${(ratio * 100).toInt()}%", color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
