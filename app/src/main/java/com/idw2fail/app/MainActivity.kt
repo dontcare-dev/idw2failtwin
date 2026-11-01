@@ -66,6 +66,14 @@ private class LocalData(context: android.content.Context) {
     private val file = java.io.File(context.filesDir, "study-data.json")
     fun read(): JSONObject = try { if (file.exists()) JSONObject(file.readText()) else JSONObject() } catch (_: Exception) { JSONObject() }
     fun write(data: JSONObject) { file.writeText(data.toString(2)) }
+    fun exportJson(): String = read().toString(2)
+    fun restoreJson(raw: String) {
+        val restored = JSONObject(raw)
+        if (!restored.has("documents") && !restored.has("notes") && !restored.has("flashcards") && !restored.has("tasks")) {
+            throw IllegalArgumentException("This file does not look like an idw2fail backup.")
+        }
+        write(restored)
+    }
     fun documents(): JSONArray = read().optJSONArray("documents") ?: JSONArray()
     fun notes(): String = read().optString("notes", "")
     fun saveNotes(value: String) { val d = read(); d.put("notes", value); write(d) }
@@ -123,6 +131,28 @@ private fun IdwApp() {
     var status by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val docs = remember(refresh) { data.documents() }
+    val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val output = context.contentResolver.openOutputStream(uri) ?: throw Exception("Could not create backup file.")
+                    output.use { it.write(data.exportJson().toByteArray(Charsets.UTF_8)) }
+                }
+                status = "Backup exported."
+            } catch (e: Exception) { status = e.message ?: "Backup export failed." }
+        }
+    }
+    val backupPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            try {
+                val raw = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                        ?: throw Exception("Could not read backup file.")
+                }
+                data.restoreJson(raw); notes = data.notes(); refresh++; status = "Backup restored on this device."
+            } catch (e: Exception) { status = e.message ?: "Backup restore failed." }
+        }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             busy = true; status = "Reading your PDF…"
@@ -232,7 +262,13 @@ private fun IdwApp() {
                     onToggle = { id, done -> data.setDone("tasks", id, done); refresh++ },
                     onDelete = { data.removeEntry("tasks", it); refresh++ }
                 )
-                else -> SettingsScreen(apiKey, { apiKey = it; vault.save(it); status = "API key saved securely on this device." }, status)
+                else -> SettingsScreen(
+                    apiKey,
+                    { apiKey = it; vault.save(it); status = "API key saved securely on this device." },
+                    status,
+                    onExport = { exportPicker.launch("idw2fail-backup.json") },
+                    onImport = { backupPicker.launch(arrayOf("application/json", "text/json")) }
+                )
             }
         }
     }
@@ -352,7 +388,7 @@ private fun NotesScreen(notes: String, onNotes: (String) -> Unit, onSave: () -> 
 }
 
 @Composable
-private fun SettingsScreen(apiKey: String, onSave: (String) -> Unit, status: String) {
+private fun SettingsScreen(apiKey: String, onSave: (String) -> Unit, status: String, onExport: () -> Unit, onImport: () -> Unit) {
     var key by remember(apiKey) { mutableStateOf(apiKey) }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("Settings", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
@@ -366,6 +402,11 @@ private fun SettingsScreen(apiKey: String, onSave: (String) -> Unit, status: Str
         Spacer(Modifier.height(24.dp))
         Text("LOCAL DATA", color = Accent, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
         Text("Study data is stored in a private JSON file inside the app. Imported PDF text is stored locally so your tutor can reference it. When you ask the AI a question, relevant text is sent to Groq.", color = Muted, fontSize = 12.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            OutlinedButton(onClick = onExport, modifier = Modifier.weight(1f), shape = RoundedCornerShape(13.dp)) { Icon(Icons.Rounded.FileDownload, null); Spacer(Modifier.width(6.dp)); Text("Export backup") }
+            OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f), shape = RoundedCornerShape(13.dp)) { Icon(Icons.Rounded.FileUpload, null); Spacer(Modifier.width(6.dp)); Text("Restore backup") }
+        }
+        Text("Restoring replaces the current local study data. Export a backup first if you want to keep it.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 8.dp))
         Text("Never share your API key. Anyone with access to your unlocked phone may be able to use the configured AI account.", color = Color(0xFFFFC78C), fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 14.dp))
     }
 }
