@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import org.json.JSONArray
 import org.json.JSONObject
@@ -189,10 +190,27 @@ private fun IdwApp() {
                                 }
                             }
                         }
-                        PDDocument.load(temp).use { pdf ->
-                            if (pdf.numberOfPages > 100) throw Exception("This PDF has ${pdf.numberOfPages} pages. Please use a file with 100 pages or fewer.")
-                            val stripper = PDFTextStripper().apply { startPage = 1; endPage = pdf.numberOfPages }
-                            stripper.getText(pdf).take(120000)
+                        // Keep PDFBox stream buffers on disk instead of allowing a large PDF
+                        // (especially image-heavy files) to consume the app's heap.
+                        PDDocument.load(temp, MemoryUsageSetting.setupTempFileOnly()).use { pdf ->
+                            if (pdf.numberOfPages > 60) throw Exception("This PDF has ${pdf.numberOfPages} pages. Please use a file with 60 pages or fewer.")
+                            // Extract one page at a time and stop as soon as the text budget is reached.
+                            // Calling getText() once for the whole document can allocate a huge String
+                            // before take() is applied, which can make Android kill the app.
+                            val stripper = PDFTextStripper()
+                            val result = StringBuilder()
+                            for (page in 1..pdf.numberOfPages) {
+                                if (result.length >= 80000) break
+                                stripper.startPage = page
+                                stripper.endPage = page
+                                val remaining = 80000 - result.length
+                                val pageText = stripper.getText(pdf)
+                                if (pageText.isNotEmpty()) {
+                                    result.append(pageText.take(remaining))
+                                    result.append('\\n')
+                                }
+                            }
+                            result.toString()
                         }
                     } finally { temp.delete() }
                 }
