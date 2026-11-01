@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -173,7 +174,14 @@ private fun IdwApp() {
     Scaffold(
         containerColor = Ink,
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFF10131A), contentColor = Color.White) {
+            NavigationBar(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xEE202431), Color(0xEE11141B))), RoundedCornerShape(24.dp))
+                    .border(1.dp, Color.White.copy(alpha = .11f), RoundedCornerShape(24.dp)),
+                containerColor = Color.Transparent,
+                contentColor = Color.White
+            ) {
                 listOf("Home", "Library", "Study", "Practice", "More").forEach { item ->
                     val icon = when (item) {
                         "Home" -> Icons.Rounded.Home
