@@ -9,7 +9,9 @@ A local-first Android study companion for school students, built with Kotlin and
 - AI tutor using imported study material as context
 - Local revision notes
 - Flashcard deck with flip-through practice
+- AI-generated flashcards based on imported PDF text
 - Revision planner with task completion tracking
+- Local progress dashboard for materials, flashcards, notes and completed tasks
 - Groq API key stored in encrypted Android preferences
 - Study data stored in the app's private JSON file
 
