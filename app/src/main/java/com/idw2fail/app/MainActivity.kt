@@ -217,7 +217,13 @@ private fun IdwApp() {
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
-                    onNotes = { page = "Notes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }
+                    onNotes = { page = "Notes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }
+                )
+                "Progress" -> ProgressScreen(
+                    documentCount = docs.length(),
+                    cardCount = data.entries("flashcards").length(),
+                    tasks = data.entries("tasks"),
+                    notesLength = notes.length()
                 )
                 "Notes" -> NotesScreen(notes, { notes = it }, { data.saveNotes(notes); status = "Saved on this device." }, status)
                 "Planner" -> PlannerScreen(
@@ -433,7 +439,7 @@ private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (
 }
 
 @Composable
-private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit) {
+private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("More", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
         Text("Your study tools and app preferences.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))
@@ -441,7 +447,42 @@ private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Uni
         Spacer(Modifier.height(9.dp))
         QuickRow("Personal notes", "Write and save revision notes", Icons.Rounded.EditNote, onNotes)
         Spacer(Modifier.height(9.dp))
+        QuickRow("Study progress", "See your saved study activity", Icons.Rounded.Insights, onProgress)
+        Spacer(Modifier.height(9.dp))
         QuickRow("AI & privacy settings", "Manage your provider key and data", Icons.Rounded.Tune, onSettings)
+    }
+}
+
+@Composable
+private fun ProgressScreen(documentCount: Int, cardCount: Int, tasks: JSONArray, notesLength: Int) {
+    val total = tasks.length()
+    var completed = 0
+    for (i in 0 until total) if (tasks.optJSONObject(i)?.optBoolean("done") == true) completed++
+    val ratio = if (total == 0) 0f else completed.toFloat() / total.toFloat()
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Text("Study progress", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
+        Text("A snapshot of the work saved on this device.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatCard("Materials", documentCount.toString(), Icons.Rounded.FolderOpen, Modifier.weight(1f))
+            StatCard("Flashcards", cardCount.toString(), Icons.Rounded.Style, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatCard("Tasks done", "$completed / $total", Icons.Rounded.TaskAlt, Modifier.weight(1f))
+            StatCard("Note length", "$notesLength", Icons.Rounded.Notes, Modifier.weight(1f))
+        }
+        Column(Modifier.fillMaxWidth().padding(top = 18.dp).background(Panel, RoundedCornerShape(18.dp)).border(1.dp, Color.White.copy(alpha = .06f), RoundedCornerShape(18.dp)).padding(17.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("TASK COMPLETION", color = Muted, fontSize = 10.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("${(ratio * 100).toInt()}%", color = Accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Box(Modifier.fillMaxWidth().padding(top = 12.dp).height(7.dp).background(Panel2, CircleShape)) {
+                Box(Modifier.fillMaxWidth(ratio).fillMaxHeight().background(Brush.horizontalGradient(listOf(Accent, Mint)), CircleShape))
+            }
+            Text(if (total == 0) "Add a revision task to start tracking completion." else "$completed of $total planned tasks completed.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
+        }
+        Text("These numbers come from your local notes, flashcards, imported PDFs and planner. They are not exam scores.", color = Muted, fontSize = 10.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 16.dp))
     }
 }
 
