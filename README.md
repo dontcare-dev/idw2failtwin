@@ -10,6 +10,7 @@ A local-first Android study companion for school students, built with Kotlin and
 - Local revision notes
 - Flashcard deck with flip-through practice
 - AI-generated flashcards based on imported PDF text
+- AI-generated multiple-choice quizzes with answer feedback and explanations
 - Revision planner with task completion tracking
 - Local progress dashboard for materials, flashcards, notes and completed tasks
 - JSON backup export and restore through Android's document picker
@@ -32,4 +33,4 @@ Notes, planner tasks, flashcards and extracted PDF text are stored locally in th
 When you send a question to the AI tutor, your question and up to 14,000 characters of imported study text are sent to Groq. Do not add sensitive personal information to study documents or prompts. API provider terms and retention policies apply to content sent to that provider.
 
 ## Current limitations
-The current build is an early functional foundation, not the complete original exam-preparation platform. AI-generated quizzes, timed mock exams, spaced repetition scheduling, subject/chapter organization, progress analytics, DOCX/OCR support, source-page citations, additional AI providers are not implemented yet.
+The current build is an early functional foundation, not the complete original exam-preparation platform. Timed mock exams, spaced repetition scheduling, subject/chapter organization, progress analytics, DOCX/OCR support, source-page citations, additional AI providers are not implemented yet.
