@@ -314,20 +314,20 @@ private fun IdwApp() {
 private fun HomeScreen(documentCount: Int, hasNotes: Boolean, navigate: (String) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
-            Text("YOUR STUDY SPACE", color = Muted, fontSize = 10.sp, letterSpacing = 1.8.sp)
+            
             Spacer(Modifier.height(8.dp))
-            Text("Let's make this\nexam feel easier.", fontSize = 31.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.2).sp)
-            Text("Your materials. Your pace. Your AI study partner.", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+            Text("Study", fontSize = 31.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.2).sp)
+            
         }
         item {
             Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF29243D), Color(0xFF171D29), Color(0xFF142A2B))), RoundedCornerShape(26.dp)).border(1.dp, Color.White.copy(alpha = .1f), RoundedCornerShape(26.dp)).padding(20.dp)) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.AutoAwesome, null, tint = Accent); Spacer(Modifier.width(8.dp))
-                        Text("AI STUDY ROOM", color = Accent, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
+                        Text("Study", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Text("Understand it.\nRemember it.", fontSize = 25.sp, fontWeight = FontWeight.SemiBold, lineHeight = 29.sp, modifier = Modifier.padding(top = 15.dp))
-                    Text("Ask questions using your own study material.", color = Color.White.copy(alpha = .68f), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp, bottom = 18.dp))
+                    Text("Ask a question", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp))
+                    
                     Button(onClick = { navigate("Study") }, colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink), shape = RoundedCornerShape(14.dp)) {
                         Text("Open study room", fontWeight = FontWeight.SemiBold); Spacer(Modifier.width(8.dp)); Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(17.dp))
                     }
@@ -335,18 +335,18 @@ private fun HomeScreen(documentCount: Int, hasNotes: Boolean, navigate: (String)
             }
         }
         item {
-            Text("YOUR SPACE", color = Muted, fontSize = 10.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold)
+            Text("Overview", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatCard("Materials", documentCount.toString(), Icons.Rounded.FolderOpen, Modifier.weight(1f))
                 StatCard("Notes", if (hasNotes) "Started" else "Empty", Icons.Rounded.EditNote, Modifier.weight(1f))
             }
         }
         item {
-            Text("QUICK ACCESS", color = Muted, fontSize = 10.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold)
+            Text("More", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                QuickRow("Add your textbooks", "Import PDF files from your phone", Icons.Rounded.UploadFile) { navigate("Library") }
-                QuickRow("Keep your notes", "Save revision points locally", Icons.Rounded.Notes) { navigate("Notes") }
-                QuickRow("Connect your AI", "Add your personal API key", Icons.Rounded.Key) { navigate("Settings") }
+                QuickRow("PDFs", "Import study material", Icons.Rounded.UploadFile) { navigate("Library") }
+                QuickRow("Notes", "Your saved notes", Icons.Rounded.Notes) { navigate("Notes") }
+                QuickRow("AI settings", "Add your API key", Icons.Rounded.Key) { navigate("Settings") }
             }
         }
         item { Text("Study data stays on this device unless you send content to your chosen AI provider.", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 12.dp)) }
@@ -457,24 +457,24 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
     val items = (0 until cards.length()).mapNotNull { cards.optJSONObject(it) }
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("Practice", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("Build a revision deck and test what you remember.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+        
         OutlinedButton(onClick = onGenerate, enabled = !generating, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = .55f))) {
             if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Accent) else Icon(Icons.Rounded.AutoAwesome, null, tint = Accent)
-            Spacer(Modifier.width(8.dp)); Text(if (generating) "Generating…" else "Generate from my PDFs", color = Accent)
+            Spacer(Modifier.width(8.dp)); Text(if (generating) "Generating…" else "Generate flashcards", color = Accent)
         }
         if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
-        Text("CREATE A FLASHCARD", color = Accent, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
+        Text("Add a card", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
         OutlinedTextField(front, { front = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Question or term") }, singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors())
         OutlinedTextField(back, { back = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Answer or definition") }, minLines = 2, shape = RoundedCornerShape(14.dp), colors = fieldColors())
         Button(onClick = { onAdd(front.trim(), back.trim()); front = ""; back = "" }, enabled = front.isNotBlank() && back.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
             Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(7.dp)); Text("Add to deck")
         }
         Row(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("YOUR REVISION DECK", color = Muted, fontSize = 10.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
+            Text("Your cards", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.weight(1f)); Text("${items.size} cards", color = Accent, fontSize = 11.sp)
         }
         if (items.isEmpty()) {
-            EmptyState("Your deck is empty", "Add terms, questions and answers above. Your cards stay on this phone.", Icons.Rounded.Style)
+            EmptyState("No cards yet", "Add one above or generate from a PDF.", Icons.Rounded.Style)
         } else {
             val card = items[index.coerceIn(0, items.lastIndex)]
             Column(Modifier.fillMaxWidth().weight(1f).background(Brush.linearGradient(listOf(Color(0xFF29243D), Panel2)), RoundedCornerShape(22.dp)).border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(22.dp)).clickable { revealed = !revealed }.padding(22.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -642,7 +642,7 @@ private suspend fun askGroq(apiKey: String, prompt: String, studyContext: String
         setRequestProperty("Authorization", "Bearer $apiKey"); setRequestProperty("Content-Type", "application/json")
     }
     try {
-        val body = JSONObject().put("model", "llama-3.3-70b-versatile").put("temperature", 0.5)
+        val body = JSONObject().put("model", "openai/gpt-oss-20b").put("temperature", 0.5)
             .put("messages", JSONArray()
                 .put(JSONObject().put("role", "system").put("content", "You are a kind, clear school study tutor for grades 1–12. Explain in simple steps, use examples, and never pretend information is in the student's notes if it is not. Use this provided study material when relevant:\n\n${studyContext.ifBlank { "No documents have been added yet." }}"))
                 .put(JSONObject().put("role", "user").put("content", prompt)))
