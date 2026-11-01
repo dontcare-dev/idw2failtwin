@@ -24,6 +24,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.ContentScale
+import coil.ImageLoader
+import coil.compose.AsyncImage
+import coil.decode.GifDecoder
+import coil.request.ImageRequest
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -51,6 +57,7 @@ private val Panel2 = Color(0xFF202020)
 private val Muted = Color(0xFFA3A3A3)
 private val Accent = Color(0xFFFFFFFF)
 private val Mint = Color(0xFFD0D0D0)
+private const val BG_GIF = "https://i.ibb.co/VWgztGwR/d895c222e5fe92cb334de04e6d8f6828.gif"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -163,20 +170,54 @@ private fun IdwApp() {
         if (uri != null) scope.launch {
             busy = true; status = "Reading your PDF…"
             try {
+                val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: "Study material.pdf"
                 val extracted = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        PDDocument.load(input).use { pdf -> PDFTextStripper().getText(pdf) }
-                    } ?: ""
+                    val temp = java.io.File.createTempFile("idw-pdf-", ".pdf", context.cacheDir)
+                    try {
+                        val input = context.contentResolver.openInputStream(uri) ?: throw Exception("The selected file could not be opened.")
+                        input.use { source ->
+                            temp.outputStream().use { target ->
+                                val buffer = ByteArray(8192)
+                                var total = 0L
+                                while (true) {
+                                    val count = source.read(buffer)
+                                    if (count < 0) break
+                                    total += count
+                                    if (total > 30L * 1024L * 1024L) throw Exception("This PDF is larger than 30 MB. Try a smaller file.")
+                                    target.write(buffer, 0, count)
+                                }
+                            }
+                        }
+                        PDDocument.load(temp).use { pdf ->
+                            if (pdf.numberOfPages > 100) throw Exception("This PDF has \${pdf.numberOfPages} pages. Please use a file with 100 pages or fewer.")
+                            val stripper = PDFTextStripper().apply { startPage = 1; endPage = pdf.numberOfPages }
+                            stripper.getText(pdf).take(120000)
+                        }
+                    } finally { temp.delete() }
                 }
-                val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: "Study material.pdf"
+                if (extracted.isBlank()) throw Exception("No selectable text was found. This may be a scanned PDF.")
                 data.addDocument(name, extracted); refresh++
-                status = "PDF added · ${extracted.length} characters extracted"
-            } catch (e: Exception) { status = "Couldn't read that PDF: ${e.message}" }
-            busy = false
+                status = "PDF added · \${extracted.length} characters extracted"
+            } catch (e: Exception) { status = "Couldn't read that PDF: \${e.message ?: "Unsupported or damaged PDF."}" }
+            finally { busy = false }
         }
     }
+    val gifLoader = remember {
+        ImageLoader.Builder(context).components { add(GifDecoder.Factory()) }.build()
+    }
+    Box(Modifier.fillMaxSize()) {
+        AsyncImage(
+            model = ImageRequest.Builder(context).data(BG_GIF).crossfade(true).build(),
+            imageLoader = gifLoader,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().alpha(0.32f)
+        )
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.48f)))
+    }
     Scaffold(
-        containerColor = Ink,
+        containerColor = Color.Transparent,
         bottomBar = {
             NavigationBar(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
@@ -202,7 +243,7 @@ private fun IdwApp() {
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).background(Ink)) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("idw2failtwin", fontSize = 21.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
             }
@@ -302,6 +343,7 @@ private fun IdwApp() {
             }
             }
         }
+    }
     }
 }
 
