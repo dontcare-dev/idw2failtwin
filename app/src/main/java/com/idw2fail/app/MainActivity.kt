@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,7 +62,6 @@ private val Muted = Color(0xFFA3A3A3)
 private val Accent = Color(0xFFFFFFFF)
 private val Mint = Color(0xFFD0D0D0)
 private const val BG_GIF = "https://i.ibb.co/VWgztGwR/d895c222e5fe92cb334de04e6d8f6828.gif"
-private const val BG_FALLBACK = "https://wallpapercave.com/wp/wp6424822.jpg"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -225,12 +226,12 @@ private fun IdwApp() {
         ImageLoader.Builder(context).components { add(GifDecoder.Factory()) }.build()
     }
     Box(Modifier.fillMaxSize()) {
-        // Always show a reliable still image underneath the animated layer.
-        AsyncImage(
-            model = BG_FALLBACK,
+        // Bundled fallback keeps the background visible even without network access.
+        Image(
+            painter = painterResource(id = R.drawable.bg_abstract),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().alpha(0.28f)
+            modifier = Modifier.fillMaxSize().alpha(0.72f)
         )
         AsyncImage(
             model = ImageRequest.Builder(context).data(BG_GIF).crossfade(true).build(),
