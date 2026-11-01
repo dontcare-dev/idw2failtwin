@@ -79,6 +79,22 @@ private class LocalData(context: android.content.Context) {
         for (i in 0 until old.length()) if (old.optJSONObject(i)?.optString("id") != id) next.put(old.get(i))
         d.put("documents", next); write(d)
     }
+    fun entries(bucket: String): JSONArray = read().optJSONArray(bucket) ?: JSONArray()
+    fun addEntry(bucket: String, title: String, body: String) {
+        val d = read(); val list = d.optJSONArray(bucket) ?: JSONArray()
+        list.put(JSONObject().put("id", UUID.randomUUID().toString()).put("title", title).put("body", body).put("done", false).put("createdAt", System.currentTimeMillis()))
+        d.put(bucket, list); write(d)
+    }
+    fun setDone(bucket: String, id: String, done: Boolean) {
+        val d = read(); val list = d.optJSONArray(bucket) ?: JSONArray()
+        for (i in 0 until list.length()) { val item = list.optJSONObject(i); if (item?.optString("id") == id) item.put("done", done) }
+        d.put(bucket, list); write(d)
+    }
+    fun removeEntry(bucket: String, id: String) {
+        val d = read(); val old = d.optJSONArray(bucket) ?: JSONArray(); val next = JSONArray()
+        for (i in 0 until old.length()) if (old.optJSONObject(i)?.optString("id") != id) next.put(old.get(i))
+        d.put(bucket, next); write(d)
+    }
 }
 
 private class KeyVault(context: android.content.Context) {
@@ -127,13 +143,13 @@ private fun IdwApp() {
         containerColor = Ink,
         bottomBar = {
             NavigationBar(containerColor = Color(0xFF10131A), contentColor = Color.White) {
-                listOf("Home", "Library", "Study", "Notes", "Settings").forEach { item ->
+                listOf("Home", "Library", "Study", "Practice", "More").forEach { item ->
                     val icon = when (item) {
                         "Home" -> Icons.Rounded.Home
                         "Library" -> Icons.Rounded.FolderOpen
                         "Study" -> Icons.Rounded.AutoAwesome
-                        "Notes" -> Icons.Rounded.EditNote
-                        else -> Icons.Rounded.Tune
+                        "Practice" -> Icons.Rounded.Style
+                        else -> Icons.Rounded.MoreHoriz
                     }
                     NavigationBarItem(selected = page == item, onClick = { page = item },
                         icon = { Icon(icon, null) }, label = { Text(item, fontSize = 10.sp) },
@@ -172,7 +188,22 @@ private fun IdwApp() {
                         busy = false
                     }
                 })
+                "Practice" -> PracticeScreen(
+                    cards = data.entries("flashcards"), refresh = refresh,
+                    onAdd = { front, back -> data.addEntry("flashcards", front, back); refresh++ },
+                    onDelete = { data.removeEntry("flashcards", it); refresh++ }
+                )
+                "More" -> MoreScreen(
+                    taskCount = data.entries("tasks").length(),
+                    onNotes = { page = "Notes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }
+                )
                 "Notes" -> NotesScreen(notes, { notes = it }, { data.saveNotes(notes); status = "Saved on this device." }, status)
+                "Planner" -> PlannerScreen(
+                    tasks = data.entries("tasks"),
+                    onAdd = { title -> data.addEntry("tasks", title, ""); refresh++ },
+                    onToggle = { id, done -> data.setDone("tasks", id, done); refresh++ },
+                    onDelete = { data.removeEntry("tasks", it); refresh++ }
+                )
                 else -> SettingsScreen(apiKey, { apiKey = it; vault.save(it); status = "API key saved securely on this device." }, status)
             }
         }
@@ -308,6 +339,82 @@ private fun SettingsScreen(apiKey: String, onSave: (String) -> Unit, status: Str
         Text("LOCAL DATA", color = Accent, fontSize = 10.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
         Text("Study data is stored in a private JSON file inside the app. Imported PDF text is stored locally so your tutor can reference it. When you ask the AI a question, relevant text is sent to Groq.", color = Muted, fontSize = 12.sp, lineHeight = 19.sp, modifier = Modifier.padding(top = 10.dp))
         Text("Never share your API key. Anyone with access to your unlocked phone may be able to use the configured AI account.", color = Color(0xFFFFC78C), fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 14.dp))
+    }
+}
+
+
+@Composable
+private fun PracticeScreen(cards: JSONArray, refresh: Int, onAdd: (String, String) -> Unit, onDelete: (String) -> Unit) {
+    var front by remember { mutableStateOf("") }
+    var back by remember { mutableStateOf("") }
+    var index by remember(refresh) { mutableIntStateOf(0) }
+    var revealed by remember(refresh) { mutableStateOf(false) }
+    val items = (0 until cards.length()).mapNotNull { cards.optJSONObject(it) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Text("Practice", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
+        Text("Build a revision deck and test what you remember.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+        Text("CREATE A FLASHCARD", color = Accent, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
+        OutlinedTextField(front, { front = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Question or term") }, singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors())
+        OutlinedTextField(back, { back = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Answer or definition") }, minLines = 2, shape = RoundedCornerShape(14.dp), colors = fieldColors())
+        Button(onClick = { onAdd(front.trim(), back.trim()); front = ""; back = "" }, enabled = front.isNotBlank() && back.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+            Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(7.dp)); Text("Add to deck")
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("YOUR REVISION DECK", color = Muted, fontSize = 10.sp, letterSpacing = 1.3.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f)); Text("${items.size} cards", color = Accent, fontSize = 11.sp)
+        }
+        if (items.isEmpty()) {
+            EmptyState("Your deck is empty", "Add terms, questions and answers above. Your cards stay on this phone.", Icons.Rounded.Style)
+        } else {
+            val card = items[index.coerceIn(0, items.lastIndex)]
+            Column(Modifier.fillMaxWidth().weight(1f).background(Brush.linearGradient(listOf(Color(0xFF29243D), Panel2)), RoundedCornerShape(22.dp)).border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(22.dp)).clickable { revealed = !revealed }.padding(22.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(if (revealed) "ANSWER" else "QUESTION", color = Accent, fontSize = 10.sp, letterSpacing = 1.6.sp)
+                Text(if (revealed) card.optString("body") else card.optString("title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, lineHeight = 28.sp, modifier = Modifier.padding(top = 18.dp))
+                Text("Tap card to flip", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 22.dp))
+            }
+            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { index = if (index <= 0) items.lastIndex else index - 1; revealed = false }) { Text("Previous", color = Muted) }
+                Text("${index + 1} / ${items.size}", color = Muted, fontSize = 11.sp)
+                TextButton(onClick = { index = (index + 1) % items.size; revealed = false }) { Text("Next", color = Accent) }
+            }
+            TextButton(onClick = { onDelete(card.optString("id")); index = 0; revealed = false }, modifier = Modifier.align(Alignment.End)) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted); Text("Remove card", color = Muted) }
+        }
+    }
+}
+
+@Composable
+private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (String, Boolean) -> Unit, onDelete: (String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    val items = (0 until tasks.length()).mapNotNull { tasks.optJSONObject(it) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Text("Revision planner", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
+        Text("Keep your next study steps clear and manageable.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
+        OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), placeholder = { Text("e.g. Revise algebra") }, singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors())
+        Button(onClick = { onAdd(title.trim()); title = "" }, enabled = title.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(7.dp)); Text("Add study task") }
+        Text("YOUR TASKS", color = Muted, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
+        if (items.isEmpty()) EmptyState("Nothing planned yet", "Add one small revision task to get started.", Icons.Rounded.EventNote)
+        else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(items, key = { it.optString("id") }) { task ->
+                Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(15.dp)).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = task.optBoolean("done"), onCheckedChange = { onToggle(task.optString("id"), it) }, colors = CheckboxDefaults.colors(checkedColor = Accent, uncheckedColor = Muted))
+                    Text(task.optString("title"), Modifier.weight(1f), fontSize = 13.sp, color = if (task.optBoolean("done")) Muted else Color.White)
+                    IconButton(onClick = { onDelete(task.optString("id")) }) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Text("More", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
+        Text("Your study tools and app preferences.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))
+        QuickRow("Revision planner", "$taskCount study tasks", Icons.Rounded.EventNote, onPlanner)
+        Spacer(Modifier.height(9.dp))
+        QuickRow("Personal notes", "Write and save revision notes", Icons.Rounded.EditNote, onNotes)
+        Spacer(Modifier.height(9.dp))
+        QuickRow("AI & privacy settings", "Manage your provider key and data", Icons.Rounded.Tune, onSettings)
     }
 }
 
