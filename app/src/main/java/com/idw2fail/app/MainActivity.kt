@@ -524,6 +524,62 @@ private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Uni
 }
 
 @Composable
+private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit) {
+    var index by remember(refresh) { mutableIntStateOf(0) }
+    var selectedAnswer by remember(refresh) { mutableStateOf("") }
+    var score by remember(refresh) { mutableIntStateOf(0) }
+    val questions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        Text("Practice quizzes", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
+        Text("Test what you understand with questions made from your material.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+        Button(onClick = onGenerate, enabled = !generating, modifier = Modifier.fillMaxWidth().height(49.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+            if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Ink) else Icon(Icons.Rounded.AutoAwesome, null)
+            Spacer(Modifier.width(8.dp)); Text(if (generating) "Generating questions…" else "Generate quiz from PDFs")
+        }
+        if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
+        if (questions.isEmpty()) {
+            EmptyState("No quiz questions yet", "Import a PDF, then generate a multiple-choice quiz from its content.", Icons.Rounded.Quiz)
+        } else {
+            val question = questions[index.coerceIn(0, questions.lastIndex)]
+            val detail = runCatching { JSONObject(question.optString("body")) }.getOrElse { JSONObject() }
+            val choices = detail.optJSONArray("choices") ?: JSONArray()
+            val correctAnswer = detail.optString("answer")
+            Text("QUESTION ${index + 1} OF ${questions.size}", color = Accent, fontSize = 10.sp, letterSpacing = 1.4.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+            Text(question.optString("title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp, modifier = Modifier.padding(bottom = 14.dp))
+            for (i in 0 until choices.length()) {
+                val option = choices.optString(i)
+                val chosen = selectedAnswer == option
+                val isCorrect = option == correctAnswer
+                OutlinedButton(
+                    onClick = { if (selectedAnswer.isBlank()) { selectedAnswer = option; if (isCorrect) score++ } },
+                    enabled = selectedAnswer.isBlank(),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color.White.copy(alpha = .12f))
+                ) {
+                    Text(option, color = if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color.White)
+                }
+            }
+            if (selectedAnswer.isNotBlank()) {
+                val correct = selectedAnswer == correctAnswer
+                Text(if (correct) "Correct" else "Not quite. Correct answer: $correctAnswer", color = if (correct) Mint else Color(0xFFFFC78C), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                Text(detail.optString("explanation"), color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp))
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Score: $score", color = Muted, fontSize = 11.sp)
+                Spacer(Modifier.weight(1f))
+                Button(onClick = { if (index < questions.lastIndex) index++ else { index = 0; score = 0 }; selectedAnswer = "" }, enabled = selectedAnswer.isNotBlank(), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+                    Text(if (index == questions.lastIndex) "Restart quiz" else "Next question")
+                }
+            }
+            TextButton(onClick = { onDelete(question.optString("id")) }, modifier = Modifier.align(Alignment.End)) {
+                Icon(Icons.Rounded.DeleteOutline, null, tint = Muted); Text("Remove question", color = Muted)
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProgressScreen(documentCount: Int, cardCount: Int, tasks: JSONArray, notesLength: Int) {
     val total = tasks.length()
     var completed = 0
