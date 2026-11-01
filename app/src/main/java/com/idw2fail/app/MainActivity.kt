@@ -196,7 +196,7 @@ private fun IdwApp() {
                         else scope.launch {
                             busy = true; status = "Creating flashcards from your PDFs…"
                             try {
-                                val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\\n") }.take(14000)
+                                val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
                                 val raw = askGroq(apiKey, "Create 8 useful school revision flashcards from the study material. Return ONLY a valid JSON array. Each item must have exactly two string fields: question and answer. Do not include markdown fences or any text outside the JSON array.", contextText)
                                 val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
                                 if (start < 0 || end <= start) throw Exception("The AI returned an invalid flashcard format. Try again.")
