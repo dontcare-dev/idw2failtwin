@@ -10,6 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -199,19 +201,8 @@ private fun IdwApp() {
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).background(Ink)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(34.dp).background(Brush.linearGradient(listOf(Accent, Mint)), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Bolt, null, tint = Ink)
-                }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text("idw2fail", fontSize = 19.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
-                    Text("YOUR PERSONAL STUDY SPACE", fontSize = 8.sp, color = Muted, letterSpacing = 1.6.sp)
-                }
-                Spacer(Modifier.weight(1f))
-                Box(Modifier.size(36.dp).border(1.dp, Color.White.copy(alpha = .1f), CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Person, null, tint = Muted, modifier = Modifier.size(19.dp))
-                }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("idw2failtwin", fontSize = 21.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
             }
             when (page) {
                 "Home" -> HomeScreen(docs.length(), notes.isNotBlank()) { page = it }
@@ -396,19 +387,42 @@ private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd:
 
 @Composable
 private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: String, busy: Boolean, status: String, onAsk: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text("AI study room", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("Ask for explanations grounded in your imported PDFs.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
-        OutlinedTextField(value = question, onValueChange = onQuestion, modifier = Modifier.fillMaxWidth(), placeholder = { Text("What topic are you stuck on?") }, minLines = 3, shape = RoundedCornerShape(18.dp), colors = fieldColors())
-        Button(onClick = onAsk, enabled = !busy && question.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(50.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
-            if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Ink) else Icon(Icons.Rounded.AutoAwesome, null)
-            Spacer(Modifier.width(8.dp)); Text(if (busy) "Working…" else "Explain this to me")
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().imePadding(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item { Text("Study", fontSize = 28.sp, fontWeight = FontWeight.SemiBold) }
+        item {
+            OutlinedTextField(
+                value = question, onValueChange = onQuestion,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Ask anything…") },
+                minLines = 3, maxLines = 6,
+                shape = RoundedCornerShape(16.dp), colors = fieldColors()
+            )
         }
-        if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
+        item {
+            Button(
+                onClick = onAsk, enabled = !busy && question.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)
+            ) {
+                if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Ink)
+                else Icon(Icons.Rounded.Send, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (busy) "Thinking…" else "Ask")
+            }
+        }
+        if (status.isNotBlank()) item { Text(status, color = Mint, fontSize = 12.sp) }
         if (answer.isNotBlank()) {
-            Text("YOUR EXPLANATION", color = Accent, fontSize = 10.sp, letterSpacing = 1.4.sp, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
-            LazyColumn(Modifier.fillMaxSize().background(Panel, RoundedCornerShape(18.dp)).padding(16.dp)) { item { Text(answer, fontSize = 13.sp, lineHeight = 21.sp) } }
-        } else EmptyState("A little help goes a long way", "Your AI tutor can explain concepts, simplify difficult ideas and help you revise.", Icons.Rounded.Lightbulb)
+            item {
+                Text("Answer", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(answer, fontSize = 14.sp, lineHeight = 22.sp,
+                    modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp))
+            }
+        }
     }
 }
 
@@ -455,39 +469,81 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
     var index by remember(refresh) { mutableIntStateOf(0) }
     var revealed by remember(refresh) { mutableStateOf(false) }
     val items = (0 until cards.length()).mapNotNull { cards.optJSONObject(it) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text("Practice", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        
-        OutlinedButton(onClick = onGenerate, enabled = !generating, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = .55f))) {
-            if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Accent) else Icon(Icons.Rounded.AutoAwesome, null, tint = Accent)
-            Spacer(Modifier.width(8.dp)); Text(if (generating) "Generating…" else "Generate flashcards", color = Accent)
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().imePadding(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item { Text("Flashcards", fontSize = 28.sp, fontWeight = FontWeight.SemiBold) }
+        item {
+            OutlinedButton(onClick = onGenerate, enabled = !generating,
+                modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = .55f))) {
+                if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Accent)
+                else Icon(Icons.Rounded.AutoAwesome, null, tint = Accent)
+                Spacer(Modifier.width(8.dp))
+                Text(if (generating) "Generating…" else "Generate from PDFs", color = Accent)
+            }
         }
-        if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
-        Text("Add a card", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-        OutlinedTextField(front, { front = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Question or term") }, singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors())
-        OutlinedTextField(back, { back = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Answer or definition") }, minLines = 2, shape = RoundedCornerShape(14.dp), colors = fieldColors())
-        Button(onClick = { onAdd(front.trim(), back.trim()); front = ""; back = "" }, enabled = front.isNotBlank() && back.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
-            Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(7.dp)); Text("Add to deck")
+        if (status.isNotBlank()) item { Text(status, color = Mint, fontSize = 12.sp) }
+        item { Text("Add card", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+        item {
+            OutlinedTextField(front, { front = it }, Modifier.fillMaxWidth(),
+                placeholder = { Text("Question") }, singleLine = true,
+                shape = RoundedCornerShape(14.dp), colors = fieldColors())
         }
-        Row(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Your cards", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.weight(1f)); Text("${items.size} cards", color = Accent, fontSize = 11.sp)
+        item {
+            OutlinedTextField(back, { back = it }, Modifier.fillMaxWidth(),
+                placeholder = { Text("Answer") }, minLines = 2, maxLines = 4,
+                shape = RoundedCornerShape(14.dp), colors = fieldColors())
+        }
+        item {
+            Button(onClick = { onAdd(front.trim(), back.trim()); front = ""; back = "" },
+                enabled = front.isNotBlank() && back.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+                Icon(Icons.Rounded.Add, null)
+                Spacer(Modifier.width(7.dp))
+                Text("Add card")
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Your cards", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                Text(items.size.toString(), color = Muted, fontSize = 13.sp)
+            }
         }
         if (items.isEmpty()) {
-            EmptyState("No cards yet", "Add one above or generate from a PDF.", Icons.Rounded.Style)
+            item { EmptyState("No cards yet", "Add a card or generate from a PDF.", Icons.Rounded.Style) }
         } else {
             val card = items[index.coerceIn(0, items.lastIndex)]
-            Column(Modifier.fillMaxWidth().weight(1f).background(Brush.linearGradient(listOf(Color(0xFF29243D), Panel2)), RoundedCornerShape(22.dp)).border(1.dp, Color.White.copy(alpha = .09f), RoundedCornerShape(22.dp)).clickable { revealed = !revealed }.padding(22.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(if (revealed) "ANSWER" else "QUESTION", color = Accent, fontSize = 10.sp, letterSpacing = 1.6.sp)
-                Text(if (revealed) card.optString("body") else card.optString("title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, lineHeight = 28.sp, modifier = Modifier.padding(top = 18.dp))
-                Text("Tap card to flip", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 22.dp))
+            item {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(min = 190.dp).clip(RoundedCornerShape(20.dp))
+                        .background(Panel2).border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(20.dp))
+                        .clickable { revealed = !revealed }.padding(22.dp),
+                    verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(if (revealed) "ANSWER" else "QUESTION", color = Accent, fontSize = 11.sp)
+                    Text(if (revealed) card.optString("body") else card.optString("title"),
+                        fontSize = 20.sp, fontWeight = FontWeight.SemiBold, lineHeight = 28.sp,
+                        modifier = Modifier.padding(top = 14.dp))
+                    Text("Tap to flip", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 18.dp))
+                }
             }
-            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { index = if (index <= 0) items.lastIndex else index - 1; revealed = false }) { Text("Previous", color = Muted) }
-                Text("${index + 1} / ${items.size}", color = Muted, fontSize = 11.sp)
-                TextButton(onClick = { index = (index + 1) % items.size; revealed = false }) { Text("Next", color = Accent) }
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = { index = if (index <= 0) items.lastIndex else index - 1; revealed = false }) { Text("Previous") }
+                    Text("${index + 1} / ${items.size}", color = Muted, fontSize = 12.sp)
+                    TextButton(onClick = { index = (index + 1) % items.size; revealed = false }) { Text("Next", color = Accent) }
+                }
             }
-            TextButton(onClick = { onDelete(card.optString("id")); index = 0; revealed = false }, modifier = Modifier.align(Alignment.End)) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted); Text("Remove card", color = Muted) }
+            item {
+                TextButton(onClick = { onDelete(card.optString("id")); index = 0; revealed = false },
+                    modifier = Modifier.fillMaxWidth()) { Text("Delete card", color = Muted) }
+            }
         }
     }
 }
@@ -538,9 +594,9 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
     var selectedAnswer by remember(refresh) { mutableStateOf("") }
     var score by remember(refresh) { mutableIntStateOf(0) }
     val questions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text("Practice quizzes", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("Test what you understand with questions made from your material.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
+        Text("Quizzes", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        
         Button(onClick = onGenerate, enabled = !generating, modifier = Modifier.fillMaxWidth().height(49.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
             if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Ink) else Icon(Icons.Rounded.AutoAwesome, null)
             Spacer(Modifier.width(8.dp)); Text(if (generating) "Generating questions…" else "Generate quiz from PDFs")
