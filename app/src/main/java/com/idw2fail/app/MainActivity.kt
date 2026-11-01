@@ -320,7 +320,6 @@ private fun HomeScreen(documentCount: Int, cardCount: Int, navigate: (String) ->
                     .border(1.dp, Color.White.copy(alpha = .2f), RoundedCornerShape(24.dp))
                     .padding(20.dp)
             ) {
-                Text("idw2failtwin", color = Muted, fontSize = 12.sp)
                 Text("Study", fontSize = 28.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
                 Button(
@@ -525,15 +524,19 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
             item {
                 Column(
                     Modifier.fillMaxWidth().heightIn(min = 190.dp).clip(RoundedCornerShape(20.dp))
-                        .background(Panel2).border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = .07f)).border(1.dp, Color.White.copy(alpha = .2f), RoundedCornerShape(20.dp))
                         .clickable { revealed = !revealed }.padding(22.dp),
                     verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(if (revealed) "ANSWER" else "QUESTION", color = Accent, fontSize = 11.sp)
-                    Text(if (revealed) card.optString("body") else card.optString("title"),
-                        fontSize = 20.sp, fontWeight = FontWeight.SemiBold, lineHeight = 28.sp,
-                        modifier = Modifier.padding(top = 14.dp))
-                    Text("Tap to flip", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 18.dp))
+                    Crossfade(targetState = revealed, animationSpec = tween(220), label = "cardFlip") { showAnswer ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(if (showAnswer) "ANSWER" else "QUESTION", color = Muted, fontSize = 11.sp)
+                            Text(if (showAnswer) card.optString("body") else card.optString("title"),
+                                fontSize = 20.sp, fontWeight = FontWeight.SemiBold, lineHeight = 28.sp,
+                                modifier = Modifier.padding(top = 14.dp))
+                            Text("Tap to flip", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 18.dp))
+                        }
+                    }
                 }
             }
             item {
