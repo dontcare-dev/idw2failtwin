@@ -247,7 +247,34 @@ private fun IdwApp() {
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
-                    onNotes = { page = "Notes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }
+                    onNotes = { page = "Notes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onQuizzes = { page = "Quizzes" }
+                )
+                "Quizzes" -> QuizScreen(
+                    quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
+                    onGenerate = {
+                        if (apiKey.isBlank()) { page = "Settings"; status = "Add your Groq API key first." }
+                        else if (docs.length() == 0) status = "Import a PDF first so the AI has material to study."
+                        else scope.launch {
+                            busy = true; status = "Generating your practice quiz…"
+                            try {
+                                val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
+                                val raw = askGroq(apiKey, "Create 10 school-level multiple-choice questions from the study material. Return ONLY a valid JSON array. Each item must contain question (string), choices (array of exactly four short strings), answer (one exact choice string), and explanation (string). Exactly one correct answer per question. No markdown or text outside JSON.", contextText)
+                                val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
+                                if (start < 0 || end <= start) throw Exception("The AI returned an invalid quiz format. Try again.")
+                                val generated = JSONArray(raw.substring(start, end + 1))
+                                var added = 0
+                                for (i in 0 until generated.length()) {
+                                    val item = generated.optJSONObject(i) ?: continue
+                                    if (item.optString("question").isNotBlank() && item.optJSONArray("choices")?.length() == 4 && item.optString("answer").isNotBlank()) {
+                                        data.addEntry("quizzes", item.optString("question"), item.toString()); added++
+                                    }
+                                }
+                                refresh++; status = if (added > 0) "$added quiz questions added." else "No usable questions were returned. Try again."
+                            } catch (e: Exception) { status = e.message ?: "Quiz generation failed." }
+                            busy = false
+                        }
+                    },
+                    onDelete = { data.removeEntry("quizzes", it); refresh++ }
                 )
                 "Progress" -> ProgressScreen(
                     documentCount = docs.length(),
@@ -480,10 +507,12 @@ private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (
 }
 
 @Composable
-private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit) {
+private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onQuizzes: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("More", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
         Text("Your study tools and app preferences.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 20.dp))
+        QuickRow("Practice quizzes", "AI-generated multiple-choice tests", Icons.Rounded.Quiz, onQuizzes)
+        Spacer(Modifier.height(9.dp))
         QuickRow("Revision planner", "$taskCount study tasks", Icons.Rounded.EventNote, onPlanner)
         Spacer(Modifier.height(9.dp))
         QuickRow("Personal notes", "Write and save revision notes", Icons.Rounded.EditNote, onNotes)
