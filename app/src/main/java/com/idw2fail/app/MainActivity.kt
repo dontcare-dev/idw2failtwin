@@ -1,6 +1,7 @@
 package com.idw2fail.app
 
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -162,7 +163,7 @@ private fun IdwApp() {
                         PDDocument.load(input).use { pdf -> PDFTextStripper().getText(pdf) }
                     } ?: ""
                 }
-                val name = uri.lastPathSegment?.substringAfterLast('/') ?: "Study material.pdf"
+                val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: "Study material.pdf"
                 data.addDocument(name, extracted); refresh++
                 status = "PDF added · ${extracted.length} characters extracted"
             } catch (e: Exception) { status = "Couldn't read that PDF: ${e.message}" }
