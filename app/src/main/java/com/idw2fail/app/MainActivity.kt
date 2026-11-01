@@ -189,7 +189,29 @@ private fun IdwApp() {
                     }
                 })
                 "Practice" -> PracticeScreen(
-                    cards = data.entries("flashcards"), refresh = refresh,
+                    cards = data.entries("flashcards"), refresh = refresh, generating = busy, status = status,
+                    onGenerate = {
+                        if (apiKey.isBlank()) { page = "Settings"; status = "Add your Groq API key first." }
+                        else if (docs.length() == 0) status = "Import a PDF first so the AI has material to study."
+                        else scope.launch {
+                            busy = true; status = "Creating flashcards from your PDFs…"
+                            try {
+                                val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\\n") }.take(14000)
+                                val raw = askGroq(apiKey, "Create 8 useful school revision flashcards from the study material. Return ONLY a valid JSON array. Each item must have exactly two string fields: question and answer. Do not include markdown fences or any text outside the JSON array.", contextText)
+                                val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
+                                if (start < 0 || end <= start) throw Exception("The AI returned an invalid flashcard format. Try again.")
+                                val generated = JSONArray(raw.substring(start, end + 1))
+                                var added = 0
+                                for (i in 0 until generated.length()) {
+                                    val item = generated.optJSONObject(i) ?: continue
+                                    val q = item.optString("question").trim(); val a = item.optString("answer").trim()
+                                    if (q.isNotBlank() && a.isNotBlank()) { data.addEntry("flashcards", q, a); added++ }
+                                }
+                                refresh++; status = if (added > 0) "$added flashcards added to your deck." else "No usable cards were returned. Try again."
+                            } catch (e: Exception) { status = e.message ?: "Flashcard generation failed." }
+                            busy = false
+                        }
+                    },
                     onAdd = { front, back -> data.addEntry("flashcards", front, back); refresh++ },
                     onDelete = { data.removeEntry("flashcards", it); refresh++ }
                 )
@@ -344,7 +366,7 @@ private fun SettingsScreen(apiKey: String, onSave: (String) -> Unit, status: Str
 
 
 @Composable
-private fun PracticeScreen(cards: JSONArray, refresh: Int, onAdd: (String, String) -> Unit, onDelete: (String) -> Unit) {
+private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onAdd: (String, String) -> Unit, onDelete: (String) -> Unit) {
     var front by remember { mutableStateOf("") }
     var back by remember { mutableStateOf("") }
     var index by remember(refresh) { mutableIntStateOf(0) }
@@ -353,6 +375,11 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, onAdd: (String, Strin
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("Practice", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
         Text("Build a revision deck and test what you remember.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
+        OutlinedButton(onClick = onGenerate, enabled = !generating, modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, Accent.copy(alpha = .55f))) {
+            if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Accent) else Icon(Icons.Rounded.AutoAwesome, null, tint = Accent)
+            Spacer(Modifier.width(8.dp)); Text(if (generating) "Generating…" else "Generate from my PDFs", color = Accent)
+        }
+        if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
         Text("CREATE A FLASHCARD", color = Accent, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
         OutlinedTextField(front, { front = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Question or term") }, singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors())
         OutlinedTextField(back, { back = it }, Modifier.fillMaxWidth().padding(top = 8.dp), placeholder = { Text("Answer or definition") }, minLines = 2, shape = RoundedCornerShape(14.dp), colors = fieldColors())
