@@ -48,6 +48,7 @@ import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.Writer
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
@@ -59,6 +60,7 @@ private val Muted = Color(0xFFA3A3A3)
 private val Accent = Color(0xFFFFFFFF)
 private val Mint = Color(0xFFD0D0D0)
 private const val BG_GIF = "https://i.ibb.co/VWgztGwR/d895c222e5fe92cb334de04e6d8f6828.gif"
+private const val BG_FALLBACK = "https://wallpapercave.com/wp/wp6424822.jpg"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,6 +78,17 @@ private fun IdwTheme(content: @Composable () -> Unit) {
     ), content = content)
 }
 
+private class CappedTextWriter(private val maxChars: Int) : Writer() {
+    private val output = StringBuilder(maxChars)
+    override fun write(chars: CharArray, offset: Int, length: Int) {
+        val remaining = maxChars - output.length
+        if (remaining > 0 && length > 0) output.append(chars, offset, minOf(length, remaining))
+    }
+    override fun flush() = Unit
+    override fun close() = Unit
+    override fun toString(): String = output.toString()
+}
+
 private class LocalData(context: android.content.Context) {
     private val file = java.io.File(context.filesDir, "study-data.json")
     fun read(): JSONObject = try { if (file.exists()) JSONObject(file.readText()) else JSONObject() } catch (_: Exception) { JSONObject() }
@@ -89,8 +102,6 @@ private class LocalData(context: android.content.Context) {
         write(restored)
     }
     fun documents(): JSONArray = read().optJSONArray("documents") ?: JSONArray()
-    fun notes(): String = read().optString("notes", "")
-    fun saveNotes(value: String) { val d = read(); d.put("notes", value); write(d) }
     fun addDocument(name: String, text: String) {
         val d = read(); val list = d.optJSONArray("documents") ?: JSONArray()
         list.put(JSONObject().put("id", UUID.randomUUID().toString()).put("name", name).put("text", text).put("createdAt", System.currentTimeMillis()))
@@ -137,7 +148,6 @@ private fun IdwApp() {
     val vault = remember { KeyVault(context) }
     var page by remember { mutableStateOf("Home") }
     var refresh by remember { mutableIntStateOf(0) }
-    var notes by remember { mutableStateOf(data.notes()) }
     var apiKey by remember { mutableStateOf(vault.get()) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
@@ -163,7 +173,7 @@ private fun IdwApp() {
                     context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                         ?: throw Exception("Could not read backup file.")
                 }
-                data.restoreJson(raw); notes = data.notes(); refresh++; status = "Backup restored on this device."
+                data.restoreJson(raw); refresh++; status = "Backup restored on this device."
             } catch (e: Exception) { status = e.message ?: "Backup restore failed." }
         }
     }
@@ -198,18 +208,8 @@ private fun IdwApp() {
                             // Calling getText() once for the whole document can allocate a huge String
                             // before take() is applied, which can make Android kill the app.
                             val stripper = PDFTextStripper()
-                            val result = StringBuilder()
-                            for (page in 1..pdf.numberOfPages) {
-                                if (result.length >= 80000) break
-                                stripper.startPage = page
-                                stripper.endPage = page
-                                val remaining = 80000 - result.length
-                                val pageText = stripper.getText(pdf)
-                                if (pageText.isNotEmpty()) {
-                                    result.append(pageText.take(remaining))
-                                    result.append('\\n')
-                                }
-                            }
+                            val result = CappedTextWriter(80000)
+                            stripper.writeText(pdf, result)
                             result.toString()
                         }
                     } finally { temp.delete() }
@@ -225,6 +225,13 @@ private fun IdwApp() {
         ImageLoader.Builder(context).components { add(GifDecoder.Factory()) }.build()
     }
     Box(Modifier.fillMaxSize()) {
+        // Always show a reliable still image underneath the animated layer.
+        AsyncImage(
+            model = BG_FALLBACK,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().alpha(0.28f)
+        )
         AsyncImage(
             model = ImageRequest.Builder(context).data(BG_GIF).crossfade(true).build(),
             imageLoader = gifLoader,
@@ -232,9 +239,8 @@ private fun IdwApp() {
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().alpha(0.32f)
         )
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.48f)))
-    }
-    Scaffold(
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.52f)))
+        Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
             NavigationBar(
@@ -245,16 +251,16 @@ private fun IdwApp() {
                 containerColor = Color.Transparent,
                 contentColor = Color.White
             ) {
-                listOf("Home", "Library", "Study", "Practice", "More").forEach { item ->
+                listOf("Home", "Library", "Study", "MCQs", "More").forEach { item ->
                     val icon = when (item) {
                         "Home" -> Icons.Rounded.Home
                         "Library" -> Icons.Rounded.FolderOpen
                         "Study" -> Icons.Rounded.AutoAwesome
-                        "Practice" -> Icons.Rounded.Style
+                        "MCQs" -> Icons.Rounded.Quiz
                         else -> Icons.Rounded.MoreHoriz
                     }
-                    NavigationBarItem(selected = page == item, onClick = { page = item },
-                        icon = { Icon(icon, null) }, label = { Text(if (item == "Practice") "Flashcards" else item, fontSize = 10.sp) },
+                    NavigationBarItem(selected = page == (if (item == "MCQs") "Quizzes" else item), onClick = { page = if (item == "MCQs") "Quizzes" else item },
+                        icon = { Icon(icon, null) }, label = { Text(item, fontSize = 10.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Accent, selectedTextColor = Accent,
                             indicatorColor = Color.White.copy(alpha = .12f), unselectedIconColor = Muted, unselectedTextColor = Muted))
                 }
@@ -309,7 +315,7 @@ private fun IdwApp() {
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
-                    onNotes = { page = "Notes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onQuizzes = { page = "Quizzes" }
+                    onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }
                 )
                 "Quizzes" -> QuizScreen(
                     quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
@@ -341,10 +347,9 @@ private fun IdwApp() {
                 "Progress" -> ProgressScreen(
                     documentCount = docs.length(),
                     cardCount = data.entries("flashcards").length(),
-                    tasks = data.entries("tasks"),
-                    notesLength = notes.length
+                    quizCount = data.entries("quizzes").length(),
+                    tasks = data.entries("tasks")
                 )
-                "Notes" -> NotesScreen(notes, { notes = it }, { data.saveNotes(notes); status = "Saved on this device." }, status)
                 "Planner" -> PlannerScreen(
                     tasks = data.entries("tasks"),
                     onAdd = { title -> data.addEntry("tasks", title, ""); refresh++ },
@@ -361,6 +366,7 @@ private fun IdwApp() {
             }
             }
         }
+    }
     }
 }
 
@@ -485,17 +491,6 @@ private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: 
                     modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp))
             }
         }
-    }
-}
-
-@Composable
-private fun NotesScreen(notes: String, onNotes: (String) -> Unit, onSave: () -> Unit, status: String) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text("Your notes", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("A quiet place for everything worth remembering.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 16.dp))
-        OutlinedTextField(value = notes, onValueChange = onNotes, modifier = Modifier.weight(1f).fillMaxWidth(), placeholder = { Text("Write your revision notes here…") }, shape = RoundedCornerShape(18.dp), colors = fieldColors())
-        Button(onClick = onSave, modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp).height(50.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) { Icon(Icons.Rounded.Save, null); Spacer(Modifier.width(8.dp)); Text("Save notes") }
-        if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp)
     }
 }
 
@@ -638,11 +633,13 @@ private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (
 }
 
 @Composable
-private fun MoreScreen(taskCount: Int, onNotes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onQuizzes: () -> Unit) {
+private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
         Text("More", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(16.dp))
-        QuickRow("Practice quizzes", "AI-generated multiple-choice tests", Icons.Rounded.Quiz, onQuizzes)
+        QuickRow("Flashcards", "Review your saved cards", Icons.Rounded.Style, onFlashcards)
+        Spacer(Modifier.height(9.dp))
+        QuickRow("MCQ practice", "AI-generated multiple-choice tests", Icons.Rounded.Quiz, onQuizzes)
         Spacer(Modifier.height(9.dp))
         QuickRow("Revision planner", "$taskCount study tasks", Icons.Rounded.EventNote, onPlanner)
         Spacer(Modifier.height(9.dp))
@@ -709,7 +706,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
 }
 
 @Composable
-private fun ProgressScreen(documentCount: Int, cardCount: Int, tasks: JSONArray, notesLength: Int) {
+private fun ProgressScreen(documentCount: Int, cardCount: Int, quizCount: Int, tasks: JSONArray) {
     val total = tasks.length()
     var completed = 0
     for (i in 0 until total) if (tasks.optJSONObject(i)?.optBoolean("done") == true) completed++
@@ -724,7 +721,7 @@ private fun ProgressScreen(documentCount: Int, cardCount: Int, tasks: JSONArray,
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatCard("Tasks done", "$completed / $total", Icons.Rounded.TaskAlt, Modifier.weight(1f))
-            StatCard("Note length", "$notesLength", Icons.Rounded.Notes, Modifier.weight(1f))
+            StatCard("MCQs", quizCount.toString(), Icons.Rounded.Quiz, Modifier.weight(1f))
         }
         Column(Modifier.fillMaxWidth().padding(top = 18.dp).background(Panel, RoundedCornerShape(18.dp)).border(1.dp, Color.White.copy(alpha = .06f), RoundedCornerShape(18.dp)).padding(17.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -737,7 +734,7 @@ private fun ProgressScreen(documentCount: Int, cardCount: Int, tasks: JSONArray,
             }
             Text(if (total == 0) "Add a revision task to start tracking completion." else "$completed of $total planned tasks completed.", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
         }
-        Text("These numbers come from your local notes, flashcards, imported PDFs and planner. They are not exam scores.", color = Muted, fontSize = 10.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 16.dp))
+        Text("These numbers come from your imported PDFs, flashcards, MCQs and planner. They are not exam scores.", color = Muted, fontSize = 10.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 16.dp))
     }
 }
 
