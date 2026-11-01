@@ -193,7 +193,7 @@ private fun IdwApp() {
                         else -> Icons.Rounded.MoreHoriz
                     }
                     NavigationBarItem(selected = page == item, onClick = { page = item },
-                        icon = { Icon(icon, null) }, label = { Text(item, fontSize = 10.sp) },
+                        icon = { Icon(icon, null) }, label = { Text(if (item == "Practice") "Flashcards" else item, fontSize = 10.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Accent, selectedTextColor = Accent,
                             indicatorColor = Color(0xFF28243A), unselectedIconColor = Muted, unselectedTextColor = Muted))
                 }
