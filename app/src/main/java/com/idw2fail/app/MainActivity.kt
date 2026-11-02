@@ -8,7 +8,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,17 +24,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.layout.ContentScale
-import coil.ImageLoader
-import coil.compose.AsyncImage
-import coil.decode.GifDecoder
-import coil.request.ImageRequest
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,7 +53,6 @@ private val Panel2 = Color(0xFF202020)
 private val Muted = Color(0xFFA3A3A3)
 private val Accent = Color(0xFFFFFFFF)
 private val Mint = Color(0xFFD0D0D0)
-private const val BG_GIF = "https://i.ibb.co/VWgztGwR/d895c222e5fe92cb334de04e6d8f6828.gif"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -222,26 +213,7 @@ private fun IdwApp() {
             finally { busy = false }
         }
     }
-    val gifLoader = remember {
-        ImageLoader.Builder(context).components { add(GifDecoder.Factory()) }.build()
-    }
-    Box(Modifier.fillMaxSize()) {
-        // Bundled fallback keeps the background visible even without network access.
-        Image(
-            painter = painterResource(id = R.drawable.bg_abstract),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().alpha(0.72f)
-        )
-        AsyncImage(
-            model = ImageRequest.Builder(context).data(BG_GIF).crossfade(true).build(),
-            imageLoader = gifLoader,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().alpha(0.32f)
-        )
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.52f)))
-        Scaffold(
+    Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
             NavigationBar(
@@ -368,7 +340,6 @@ private fun IdwApp() {
             }
         }
     }
-    }
 }
 
 @Composable
@@ -439,8 +410,9 @@ private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd:
         }
         if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(vertical = 10.dp))
         if (docs.length() == 0) EmptyState("Your library is empty", "Add a textbook or class PDF to start building your study space.", Icons.Rounded.FolderOpen)
-        else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 16.dp)) {
-            items((0 until docs.length()).mapNotNull { docs.optJSONObject(it) }) { doc ->
+
+        else Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 16.dp)) {
+            (0 until docs.length()).mapNotNull { docs.optJSONObject(it) }.forEach { doc ->
                 Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.PictureAsPdf, null, tint = Accent); Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
@@ -614,15 +586,16 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
 private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (String, Boolean) -> Unit, onDelete: (String) -> Unit) {
     var title by remember { mutableStateOf("") }
     val taskItems = (0 until tasks.length()).mapNotNull { tasks.optJSONObject(it) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Text("Revision planner", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
         Text("Keep your next study steps clear and manageable.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
         OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), placeholder = { Text("e.g. Revise algebra") }, singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors())
         Button(onClick = { onAdd(title.trim()); title = "" }, enabled = title.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(7.dp)); Text("Add study task") }
         Text("YOUR TASKS", color = Muted, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
         if (taskItems.isEmpty()) EmptyState("Nothing planned yet", "Add one small revision task to get started.", Icons.Rounded.EventNote)
-        else LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            items(taskItems, key = { it.optString("id") }) { task ->
+
+        else Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            taskItems.forEach { task ->
                 Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(15.dp)).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = task.optBoolean("done"), onCheckedChange = { onToggle(task.optString("id"), it) }, colors = CheckboxDefaults.colors(checkedColor = Accent, uncheckedColor = Muted))
                     Text(task.optString("title"), Modifier.weight(1f), fontSize = 13.sp, color = if (task.optBoolean("done")) Muted else Color.White)
