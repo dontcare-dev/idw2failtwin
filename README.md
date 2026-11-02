@@ -1,36 +1,43 @@
-# idw2fail — Android
+# SDS-IDW2FAILTWIN
 
-A local-first Android study companion for school students, built with Kotlin and Jetpack Compose.
+Native Android study app built with Kotlin and Jetpack Compose.
 
-## Included
-- Dark, glass-inspired native interface
-- Home dashboard
-- PDF library with on-device text extraction
-- AI tutor using imported study material as context
-- Local revision notes
-- Flashcard deck with flip-through practice
-- AI-generated flashcards based on imported PDF text
-- AI-generated multiple-choice quizzes with answer feedback and explanations
-- Revision planner with task completion tracking
-- Local progress dashboard for materials, flashcards, notes and completed tasks
-- JSON backup export and restore through Android's document picker
-- Groq API key stored in encrypted Android preferences
-- Study data stored in the app's private JSON file
+## Features
+
+- Import PDF study material and extract text on the device
+- Ask questions using imported study material
+- Generate flashcards and multiple-choice practice questions
+- Save quiz questions and review answers
+- Generate a 100-question exam paper in five formats
+- Take an exam with a three-hour timer
+- Export the generated exam paper as a PDF
+- Create and track revision tasks
+- View local study activity
+- Export and restore a JSON backup
+- Use Groq, OpenAI, or Gemini with API keys stored in encrypted preferences
 
 ## Build
+
+Requirements:
+
 - JDK 17
 - Android SDK 35
 - Gradle 8.9
-- Minimum Android version: Android 8.0 (API 26)
 
-Open the project in Android Studio and run the `app` configuration. A debug APK is produced at `app/build/outputs/apk/debug/app-debug.apk`.
+Run `gradle assembleDebug` to build the debug APK. The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-GitHub Actions also builds the debug APK and publishes it as an artifact named `idw2fail-debug-apk` when the workflow succeeds.
+GitHub Actions builds the APK on pushes to `main` and publishes `idw2fail-debug-apk` as a workflow artifact.
 
-## Data and privacy
-Notes, planner tasks, flashcards and extracted PDF text are stored locally in the app's private `study-data.json` file. The Groq API key is stored separately with Android encrypted preferences. No account or remote database is required.
+## Storage and privacy
 
-When you send a question to the AI tutor, your question and up to 14,000 characters of imported study text are sent to Groq. Do not add sensitive personal information to study documents or prompts. API provider terms and retention policies apply to content sent to that provider.
+Imported PDF text, flashcards, quiz questions, exam papers, and planner tasks are stored in the app's private local storage. API keys are stored using Android encrypted preferences.
 
-## Current limitations
-The current build is an early functional foundation, not the complete original exam-preparation platform. Timed mock exams, spaced repetition scheduling, subject/chapter organization, progress analytics, DOCX/OCR support, source-page citations, additional AI providers are not implemented yet.
+When an AI feature is used, the relevant prompt and study text are sent to the selected provider. Provider privacy and retention policies apply. No account or remote database is used by this app.
+
+## Limitations
+
+- PDF text extraction does not include OCR for scanned pages.
+- DOCX files are not supported.
+- Exam answers are collected in the app but are not automatically graded.
+- The generated paper depends on the quality and coverage of the imported material.
+- API provider availability, model access, and usage limits depend on the configured account.
