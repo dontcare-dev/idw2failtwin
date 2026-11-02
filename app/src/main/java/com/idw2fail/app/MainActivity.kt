@@ -244,13 +244,8 @@ private fun IdwApp() {
                                 }
                             }
                         }
-                        // Keep PDFBox stream buffers on disk instead of allowing a large PDF
-                        // (especially image-heavy files) to consume the app's heap.
                         PDDocument.load(temp, MemoryUsageSetting.setupTempFileOnly()).use { pdf ->
                             if (pdf.numberOfPages > 60) throw Exception("This PDF has ${pdf.numberOfPages} pages. Please use a file with 60 pages or fewer.")
-                            // Extract one page at a time and stop as soon as the text budget is reached.
-                            // Calling getText() once for the whole document can allocate a huge String
-                            // before take() is applied, which can make Android kill the app.
                             val stripper = PDFTextStripper()
                             val result = CappedTextWriter(80000)
                             stripper.writeText(pdf, result)
@@ -768,7 +763,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                     shape = RoundedCornerShape(14.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color(0xFF17191D).copy(alpha = .10f))
                 ) {
-                    Text(option, color = if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color.White)
+                    Text(option, color = if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color(0xFF17191D))
                 }
             }
             if (selectedAnswer.isNotBlank()) {
