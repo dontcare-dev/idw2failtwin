@@ -308,7 +308,7 @@ private fun IdwApp() {
                 "Practice" -> PracticeScreen(
                     cards = data.entries("flashcards"), refresh = refresh, generating = busy, status = status,
                     onGenerate = {
-                        if (apiKey.isBlank()) { page = "Settings"; status = "Add your Groq API key first." }
+                        if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                         else if (docs.length() == 0) status = "Import a PDF first so the AI has material to study."
                         else scope.launch {
                             busy = true; status = "Creating flashcards from your PDFs…"
@@ -322,7 +322,10 @@ private fun IdwApp() {
                                 for (i in 0 until generated.length()) {
                                     val item = generated.optJSONObject(i) ?: continue
                                     val q = item.optString("question").trim(); val a = item.optString("answer").trim()
-                                    if (q.isNotBlank() && a.isNotBlank()) { data.addEntry("flashcards", q, a); added++ }
+                                    if (q.isNotBlank() && a.isNotBlank()) {
+                                        val duplicate = (0 until data.entries("flashcards").length()).any { data.entries("flashcards").optJSONObject(it)?.optString("title")?.trim()?.equals(q, true) == true }
+                                        if (!duplicate) { data.addEntry("flashcards", q, a); added++ }
+                                    }
                                 }
                                 refresh++; status = if (added > 0) "$added flashcards added to your deck." else "No usable cards were returned. Try again."
                             } catch (e: Exception) { status = e.message ?: "Flashcard generation failed." }
@@ -359,7 +362,8 @@ private fun IdwApp() {
                                     val validChoices = choiceValues.size == 4 && choiceValues.all { it.isNotBlank() } && choiceValues.toSet().size == 4
                                     val answerExists = answerChoice.isNotBlank() && choiceValues.contains(answerChoice)
                                     if (item.optString("question").isNotBlank() && validChoices && answerExists) {
-                                        data.addEntry("quizzes", item.optString("question"), item.toString()); added++
+                                        val duplicate = (0 until data.entries("quizzes").length()).any { data.entries("quizzes").optJSONObject(it)?.optString("title")?.trim()?.equals(item.optString("question").trim(), true) == true }
+                                        if (!duplicate) { data.addEntry("quizzes", item.optString("question"), item.toString()); added++ }
                                     }
                                 }
                                 refresh++; status = if (added > 0) "$added quiz questions added." else "No usable questions were returned. Try again."
