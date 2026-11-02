@@ -356,15 +356,29 @@ private fun IdwApp() {
                                 var added = 0
                                 for (i in 0 until generated.length()) {
                                     val item = generated.optJSONObject(i) ?: continue
-                                    val options = item.optJSONArray("choices")
-                                    val answerChoice = item.optString("answer").trim()
+                                    val options = item.optJSONArray("choices") ?: item.optJSONArray("options")
+                                    val answerChoice = item.optString("answer", item.optString("correct_answer")).trim()
                                     val choiceValues = if (options == null) emptyList() else
-                                        (0 until options.length()).map { options.optString(it).trim() }
-                                    val validChoices = choiceValues.size == 4 && choiceValues.all { it.isNotBlank() } && choiceValues.toSet().size == 4
-                                    val answerExists = answerChoice.isNotBlank() && choiceValues.contains(answerChoice)
-                                    if (item.optString("question").isNotBlank() && validChoices && answerExists) {
-                                        val duplicate = (0 until data.entries("quizzes").length()).any { data.entries("quizzes").optJSONObject(it)?.optString("title")?.trim()?.equals(item.optString("question").trim(), true) == true }
-                                        if (!duplicate) { data.addEntry("quizzes", item.optString("question"), item.toString()); added++ }
+                                        (0 until options.length()).map { index ->
+                                            val option = options.opt(index)
+                                            when (option) {
+                                                is JSONObject -> option.optString("text", option.optString("value", option.optString("option"))).trim()
+                                                else -> option.toString().trim()
+                                            }
+                                        }
+                                    val uniqueChoices = choiceValues.map { it.lowercase() }.toSet().size == 4
+                                    val correctChoice = choiceValues.firstOrNull { it.equals(answerChoice, true) }
+                                    val questionText = item.optString("question").trim()
+                                    if (questionText.isNotBlank() && choiceValues.size == 4 && choiceValues.all { it.isNotBlank() } && uniqueChoices && correctChoice != null) {
+                                        val duplicate = (0 until data.entries("quizzes").length()).any { data.entries("quizzes").optJSONObject(it)?.optString("title")?.trim()?.equals(questionText, true) == true }
+                                        if (!duplicate) {
+                                            val normalized = JSONObject(item.toString()).put("question", questionText)
+                                                .put("choices", JSONArray(choiceValues)).put("answer", correctChoice)
+                                            normalized.remove("options")
+                                            normalized.remove("correct_answer")
+                                            data.addEntry("quizzes", questionText, normalized.toString())
+                                            added++
+                                        }
                                     }
                                 }
                                 refresh++; status = if (added > 0) "$added quiz questions added." else "No usable questions were returned. Try again."
@@ -718,6 +732,23 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
 }
 
 @Composable
+private fun readMcqChoices(detail: JSONObject): List<String> {
+    val choices = detail.optJSONArray("choices") ?: detail.optJSONArray("options") ?: return emptyList()
+    return (0 until choices.length()).map { index ->
+        val option = choices.opt(index)
+        when (option) {
+            is JSONObject -> option.optString("text", option.optString("value", option.optString("option"))).trim()
+            else -> option.toString().trim()
+        }
+    }.filter { it.isNotBlank() }.distinctBy { it.lowercase() }
+}
+
+private fun readMcqAnswer(detail: JSONObject, choices: List<String>): String {
+    val answer = detail.optString("answer", detail.optString("correct_answer")).trim()
+    return choices.firstOrNull { it.equals(answer, true) } ?: ""
+}
+
+@Composable
 private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit) {
     var index by remember(refresh) { mutableIntStateOf(0) }
     var selectedAnswer by remember(refresh) { mutableStateOf("") }
@@ -736,14 +767,14 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Ink) else Icon(Icons.Rounded.AutoAwesome, null)
             Spacer(Modifier.width(8.dp)); Text(if (generating) "Generating questions…" else "Generate quiz from PDFs")
         }
-        if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
+        if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
         if (questions.isEmpty()) {
             EmptyState("No questions yet", "Import a PDF and generate MCQs.", Icons.Rounded.Quiz)
         } else {
             val question = questions[index.coerceIn(0, questions.lastIndex)]
             val detail = runCatching { JSONObject(question.optString("body")) }.getOrElse { JSONObject() }
-            val choices = detail.optJSONArray("choices") ?: JSONArray()
-            val correctAnswer = detail.optString("answer")
+            val choices = readMcqChoices(detail)
+            val correctAnswer = readMcqAnswer(detail, choices)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 9.dp)) {
                 Text("QUESTION ${index + 1} OF ${questions.size}", color = Violet, fontSize = 10.sp, letterSpacing = 1.4.sp)
                 Spacer(Modifier.weight(1f))
@@ -752,19 +783,35 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                 }
             }
             Text(question.optString("title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp, modifier = Modifier.padding(bottom = 14.dp))
-            for (i in 0 until choices.length()) {
-                val option = choices.optString(i)
-                val chosen = selectedAnswer == option
-                val isCorrect = option == correctAnswer
-                OutlinedButton(
-                    onClick = { if (selectedAnswer.isBlank()) { selectedAnswer = option; if (isCorrect) { score++; celebration++ } } },
-                    enabled = selectedAnswer.isBlank(),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color(0xFF17191D).copy(alpha = .10f))
-                ) {
-                    Text(option, color = if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color(0xFF17191D))
+            if (choices.size == 4 && correctAnswer.isNotBlank()) {
+                choices.forEachIndexed { optionIndex, option ->
+                    val chosen = selectedAnswer == option
+                    val isCorrect = option == correctAnswer
+                    val optionColor = when {
+                        chosen && isCorrect -> Mint
+                        chosen -> Coral
+                        else -> Color(0xFF17191D)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(bottom = 9.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (chosen && isCorrect) Color(0xFFE4F5EF) else if (chosen) Color(0xFFFFF0EA) else Color.White)
+                            .border(1.dp, if (chosen && isCorrect) Mint else if (chosen) Coral else Color(0xFF17191D).copy(alpha = .14f), RoundedCornerShape(14.dp))
+                            .clickable(enabled = selectedAnswer.isBlank()) {
+                                selectedAnswer = option
+                                if (isCorrect) { score++; celebration++ }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = chosen, onClick = null, enabled = selectedAnswer.isBlank(), colors = RadioButtonDefaults.colors(selectedColor = optionColor, unselectedColor = Muted))
+                        Text(('A' + optionIndex).toString(), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 5.dp, end = 10.dp))
+                        Text(option, color = optionColor, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.weight(1f))
+                    }
                 }
+            } else {
+                Text("The saved question has missing or invalid answer options. Generate a new quiz to replace it.", color = Coral, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(12.dp))
             }
             if (selectedAnswer.isNotBlank()) {
                 val correct = selectedAnswer == correctAnswer
@@ -785,7 +832,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Score: $score", color = Muted, fontSize = 11.sp)
                 Spacer(Modifier.weight(1f))
-                Button(onClick = { if (index < questions.lastIndex) index++ else { index = 0; score = 0 }; selectedAnswer = "" }, enabled = selectedAnswer.isNotBlank(), shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+                Button(onClick = { if (index < questions.lastIndex) index++ else { index = 0; score = 0 }; selectedAnswer = "" }, enabled = selectedAnswer.isNotBlank() && choices.size == 4, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
                     Text(if (index == questions.lastIndex) "Restart quiz" else "Next question")
                 }
             }
