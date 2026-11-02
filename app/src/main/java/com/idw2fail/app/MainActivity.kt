@@ -51,15 +51,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
 
-private val Ink = Color(0xFF050505)
-private val Panel = Color(0xFF141414)
-private val Panel2 = Color(0xFF202020)
-private val Muted = Color(0xFFA3A3A3)
-private val Accent = Color(0xFFFFFFFF)
-private val Mint = Color(0xFFB8F4E5)
-private val Coral = Color(0xFFFFB6A6)
-private val Violet = Color(0xFFC9B8FF)
-private val Gold = Color(0xFFFFD98A)
+private val Ink = Color(0xFFFFFFFF)
+private val Panel = Color(0xFFF5F6F8)
+private val Panel2 = Color(0xFFE9ECF0)
+private val Muted = Color(0xFF68717D)
+private val Accent = Color(0xFF17191D)
+private val Mint = Color(0xFF147D67)
+private val Coral = Color(0xFFD85C4A)
+private val Violet = Color(0xFF6950A1)
+private val Gold = Color(0xFF9B6B00)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,9 +71,9 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun IdwTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = darkColorScheme(
+    MaterialTheme(colorScheme = lightColorScheme(
         background = Ink, surface = Panel, primary = Accent, secondary = Mint,
-        onBackground = Color.White, onSurface = Color.White
+        onBackground = Color(0xFF17191D), onSurface = Color(0xFF17191D)
     ), content = content)
 }
 
@@ -265,8 +265,8 @@ private fun IdwApp() {
             NavigationBar(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xD9141414), RoundedCornerShape(24.dp))
-                    .border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(24.dp)),
+                    .background(Color(0xFFF5F6F8), RoundedCornerShape(24.dp))
+                    .border(1.dp, Color(0xFF17191D).copy(alpha = .10f), RoundedCornerShape(24.dp)),
                 containerColor = Color.Transparent,
                 contentColor = Color.White
             ) {
@@ -281,7 +281,7 @@ private fun IdwApp() {
                     NavigationBarItem(selected = page == (if (item == "MCQs") "Quizzes" else item), onClick = { page = if (item == "MCQs") "Quizzes" else item },
                         icon = { Icon(icon, null) }, label = { Text(item, fontSize = 10.sp) },
                         colors = NavigationBarItemDefaults.colors(selectedIconColor = Accent, selectedTextColor = Accent,
-                            indicatorColor = Color.White.copy(alpha = .12f), unselectedIconColor = Muted, unselectedTextColor = Muted))
+                            indicatorColor = Color(0xFF17191D).copy(alpha = .10f), unselectedIconColor = Muted, unselectedTextColor = Muted))
                 }
             }
         }
@@ -412,12 +412,11 @@ private fun HomeScreen(documentCount: Int, cardCount: Int, navigate: (String) ->
         item {
             Column(
                 Modifier.fillMaxWidth()
-                    .background(Brush.linearGradient(listOf(Color(0xFF263B4A), Color(0xFF342B45), Color(0xFF49312E))), RoundedCornerShape(24.dp))
-                    .border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(24.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFFEAF4F1), Color(0xFFF1EEF8), Color(0xFFFFF0EB))), RoundedCornerShape(24.dp))
+                    .border(1.dp, Color(0xFF17191D).copy(alpha = .10f), RoundedCornerShape(24.dp))
                     .padding(20.dp)
             ) {
-                Text("Make today count.", fontSize = 27.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
-                Text("Small steps. Stronger understanding.", color = Color.White.copy(alpha = .78f), fontSize = 12.sp, modifier = Modifier.padding(bottom = 18.dp))
+                Text("Study dashboard", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, bottom = 18.dp))
                 Button(
                     onClick = { navigate("Study") },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -445,14 +444,14 @@ private fun HomeScreen(documentCount: Int, cardCount: Int, navigate: (String) ->
 
 @Composable
 private fun StatCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Column(modifier.background(Color.White.copy(alpha = .055f), RoundedCornerShape(20.dp)).border(1.dp, Color.White.copy(alpha = .16f), RoundedCornerShape(20.dp)).padding(16.dp)) {
+    Column(modifier.background(Color(0xFF17191D).copy(alpha = .045f), RoundedCornerShape(20.dp)).border(1.dp, Color(0xFF17191D).copy(alpha = .10f), RoundedCornerShape(20.dp)).padding(16.dp)) {
         Icon(icon, null, tint = Accent); Spacer(Modifier.height(15.dp))
         Text(value, fontSize = 22.sp, fontWeight = FontWeight.SemiBold); Text(title, color = Muted, fontSize = 11.sp)
     }
 }
 @Composable
 private fun QuickRow(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().background(Color.White.copy(alpha = .045f), RoundedCornerShape(17.dp)).border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(17.dp)).clickable(onClick = onClick).padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().background(Color(0xFF17191D).copy(alpha = .045f), RoundedCornerShape(17.dp)).border(1.dp, Color(0xFF17191D).copy(alpha = .10f), RoundedCornerShape(17.dp)).clickable(onClick = onClick).padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = Accent, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.Medium, fontSize = 13.sp); Text(subtitle, color = Muted, fontSize = 11.sp) }
         Icon(Icons.Rounded.ChevronRight, null, tint = Muted)
@@ -468,7 +467,7 @@ private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd:
             Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(8.dp)); Text("Import a PDF", fontWeight = FontWeight.SemiBold)
         }
         if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(vertical = 10.dp))
-        if (docs.length() == 0) EmptyState("Your library is empty", "Add a textbook or class PDF to start building your study space.", Icons.Rounded.FolderOpen)
+        if (docs.length() == 0) EmptyState("No documents", "Import a PDF to begin.", Icons.Rounded.FolderOpen)
 
         else Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 16.dp)) {
             (0 until docs.length()).mapNotNull { docs.optJSONObject(it) }.forEach { doc ->
@@ -653,11 +652,11 @@ private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (
     val taskItems = (0 until tasks.length()).mapNotNull { tasks.optJSONObject(it) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Text("Revision planner", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("Keep your next study steps clear and manageable.", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp, bottom = 18.dp))
+        
         OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), placeholder = { Text("e.g. Revise algebra") }, singleLine = true, shape = RoundedCornerShape(14.dp), colors = fieldColors())
         Button(onClick = { onAdd(title.trim()); title = "" }, enabled = title.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(48.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(7.dp)); Text("Add study task") }
         Text("YOUR TASKS", color = Muted, fontSize = 10.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
-        if (taskItems.isEmpty()) EmptyState("Nothing planned yet", "Add one small revision task to get started.", Icons.Rounded.EventNote)
+        if (taskItems.isEmpty()) EmptyState("No tasks yet", "Add a task to your planner.", Icons.Rounded.EventNote)
 
         else Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             taskItems.forEach { task ->
@@ -710,7 +709,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
         }
         if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
         if (questions.isEmpty()) {
-            EmptyState("No quiz questions yet", "Import a PDF, then generate a multiple-choice quiz from its content.", Icons.Rounded.Quiz)
+            EmptyState("No questions yet", "Import a PDF and generate MCQs.", Icons.Rounded.Quiz)
         } else {
             val question = questions[index.coerceIn(0, questions.lastIndex)]
             val detail = runCatching { JSONObject(question.optString("body")) }.getOrElse { JSONObject() }
@@ -733,7 +732,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                     enabled = selectedAnswer.isBlank(),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color.White.copy(alpha = .12f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color(0xFF17191D).copy(alpha = .10f))
                 ) {
                     Text(option, color = if (chosen && isCorrect) Mint else if (chosen) Color(0xFFFFC78C) else Color.White)
                 }
@@ -741,16 +740,16 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             if (selectedAnswer.isNotBlank()) {
                 val correct = selectedAnswer == correctAnswer
                 if (correct) {
-                    Row(Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFF173B35)).padding(12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFE4F5EF)).padding(12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                         listOf(Coral, Gold, Violet, Mint, Color(0xFF9CCBFF)).forEach { balloon ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box(Modifier.size(19.dp, 23.dp).clip(RoundedCornerShape(50)).background(balloon))
                                 Box(Modifier.width(1.dp).height(8.dp).background(Color.White.copy(alpha = .6f)))
                             }
                         }
-                        Text("That's right!", color = Mint, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Correct", color = Mint, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
-                } else Text("Not quite. Correct answer: $correctAnswer", color = Coral, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                } else Text("Incorrect · Answer: $correctAnswer", color = Coral, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
                 Text(detail.optString("explanation"), color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp))
             }
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -781,11 +780,11 @@ private fun ExamScreen(quizzes: JSONArray, onExport: () -> Unit) {
     val seconds = secondsLeft % 60
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp)) {
         Text("Examinations", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
-        Text("SDS · Full-chapter assessment", color = Violet, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
-        Column(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(Color(0xFF29394B), Color(0xFF493344)))).padding(20.dp)) {
+        
+        Column(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(Color(0xFFEAF4F1), Color(0xFFF1EEF8)))).padding(20.dp)) {
             Text("MOCK EXAM", color = Color.White.copy(alpha = .75f), fontSize = 10.sp, letterSpacing = 1.6.sp)
             Text("3:00:00", fontSize = 36.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
-            Text("Three-hour timed paper · Full chapter · No XP or game rewards", color = Color.White.copy(alpha = .8f), fontSize = 11.sp, lineHeight = 17.sp)
+            Text("100 questions · Mixed question types", color = Muted, fontSize = 11.sp)
             if (started) Text("TIME LEFT  %02d:%02d:%02d".format(hours, minutes, seconds), color = Gold, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
             if (finished) Text("Time is up. Review your answers and prepare for the next attempt.", color = Coral, modifier = Modifier.padding(top = 12.dp))
             Button(onClick = { if (!started) { secondsLeft = 10800; finished = false; started = true } else { started = false; finished = true } }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink)) {
@@ -819,7 +818,7 @@ private fun ProgressScreen(documentCount: Int, cardCount: Int, quizCount: Int, t
             StatCard("Tasks done", "$completed / $total", Icons.Rounded.TaskAlt, Modifier.weight(1f))
             StatCard("MCQs", quizCount.toString(), Icons.Rounded.Quiz, Modifier.weight(1f))
         }
-        Column(Modifier.fillMaxWidth().padding(top = 18.dp).background(Panel, RoundedCornerShape(18.dp)).border(1.dp, Color.White.copy(alpha = .06f), RoundedCornerShape(18.dp)).padding(17.dp)) {
+        Column(Modifier.fillMaxWidth().padding(top = 18.dp).background(Panel, RoundedCornerShape(18.dp)).border(1.dp, Color(0xFF17191D).copy(alpha = .07f), RoundedCornerShape(18.dp)).padding(17.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Tasks completed", color = Muted, fontSize = 12.sp)
                 Spacer(Modifier.weight(1f))
@@ -844,8 +843,8 @@ private fun EmptyState(title: String, subtitle: String, icon: androidx.compose.u
 }
 @Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Accent, unfocusedBorderColor = Color.White.copy(alpha = .12f),
-    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+    focusedBorderColor = Accent, unfocusedBorderColor = Color(0xFF17191D).copy(alpha = .10f),
+    focusedTextColor = Color(0xFF17191D), unfocusedTextColor = Color(0xFF17191D),
     focusedPlaceholderColor = Muted, unfocusedPlaceholderColor = Muted
 )
 
