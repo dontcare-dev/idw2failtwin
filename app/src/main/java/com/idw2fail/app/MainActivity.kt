@@ -274,7 +274,7 @@ private fun IdwApp() {
                     .background(Color(0xFFF5F6F8), RoundedCornerShape(24.dp))
                     .border(1.dp, Color(0xFF17191D).copy(alpha = .10f), RoundedCornerShape(24.dp)),
                 containerColor = Color.Transparent,
-                contentColor = Color.White
+                contentColor = Color(0xFF17191D)
             ) {
                 listOf("Home", "Library", "Study", "MCQs", "More").forEach { item ->
                     val icon = when (item) {
@@ -584,7 +584,7 @@ private fun SettingsScreen(provider: String, keys: Map<String, String>, onSave: 
             OutlinedButton(onClick = onImport, modifier = Modifier.weight(1f), shape = RoundedCornerShape(13.dp)) { Icon(Icons.Rounded.FileUpload, null); Spacer(Modifier.width(6.dp)); Text("Restore backup") }
         }
         Text("Restoring replaces the current local study data. Export a backup first if you want to keep it.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 8.dp))
-        Text("Never share your API key. Anyone with access to your unlocked phone may be able to use the configured AI account.", color = Color.White.copy(alpha = .78f), fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 14.dp))
+        Text("Never share your API key. Anyone with access to your unlocked phone may be able to use the configured AI account.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 14.dp))
     }
 }
 
@@ -636,7 +636,7 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
         }
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Your cards", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Your cards", color = Color(0xFF17191D), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 Text(items.size.toString(), color = Muted, fontSize = 13.sp)
             }
@@ -695,7 +695,7 @@ private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (
             taskItems.forEach { task ->
                 Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(15.dp)).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = task.optBoolean("done"), onCheckedChange = { onToggle(task.optString("id"), it) }, colors = CheckboxDefaults.colors(checkedColor = Accent, uncheckedColor = Muted))
-                    Text(task.optString("title"), Modifier.weight(1f), fontSize = 13.sp, color = if (task.optBoolean("done")) Muted else Color.White)
+                    Text(task.optString("title"), Modifier.weight(1f), fontSize = 13.sp, color = if (task.optBoolean("done")) Muted else Color(0xFF17191D))
                     IconButton(onClick = { onDelete(task.optString("id")) }) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) }
                 }
             }
