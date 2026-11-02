@@ -342,7 +342,7 @@ private fun IdwApp() {
                 "Quizzes" -> QuizScreen(
                     quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
                     onGenerate = {
-                        if (apiKey.isBlank()) { page = "Settings"; status = "Add your Groq API key first." }
+                        if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                         else if (docs.length() == 0) status = "Import a PDF first so the AI has material to study."
                         else scope.launch {
                             busy = true; status = "Generating your practice quiz…"
