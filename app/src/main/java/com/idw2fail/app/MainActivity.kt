@@ -52,7 +52,10 @@ private val Panel = Color(0xFF141414)
 private val Panel2 = Color(0xFF202020)
 private val Muted = Color(0xFFA3A3A3)
 private val Accent = Color(0xFFFFFFFF)
-private val Mint = Color(0xFFD0D0D0)
+private val Mint = Color(0xFFB8F4E5)
+private val Coral = Color(0xFFFFB6A6)
+private val Violet = Color(0xFFC9B8FF)
+private val Gold = Color(0xFFFFD98A)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -242,7 +245,7 @@ private fun IdwApp() {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("idw2failtwin", fontSize = 21.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.7).sp)
+                Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(Brush.linearGradient(listOf(Violet, Coral, Mint))), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.School, null, tint = Ink, modifier = Modifier.size(21.dp)) }; Spacer(Modifier.width(10.dp)); Text("SDS-IDW2FAILTWIN", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp) }
             }
             Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
             when (currentPage) {
@@ -359,12 +362,12 @@ private fun HomeScreen(documentCount: Int, cardCount: Int, navigate: (String) ->
         item {
             Column(
                 Modifier.fillMaxWidth()
-                    .background(Color.White.copy(alpha = .07f), RoundedCornerShape(24.dp))
-                    .border(1.dp, Color.White.copy(alpha = .2f), RoundedCornerShape(24.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF263B4A), Color(0xFF342B45), Color(0xFF49312E))), RoundedCornerShape(24.dp))
+                    .border(1.dp, Color.White.copy(alpha = .22f), RoundedCornerShape(24.dp))
                     .padding(20.dp)
             ) {
-                Text("Study", fontSize = 28.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+                Text("Make today count.", fontSize = 27.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp, bottom = 8.dp))
+                Text("Small steps. Stronger understanding.", color = Color.White.copy(alpha = .78f), fontSize = 12.sp, modifier = Modifier.padding(bottom = 18.dp))
                 Button(
                     onClick = { navigate("Study") },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
