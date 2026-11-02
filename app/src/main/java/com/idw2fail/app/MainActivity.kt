@@ -214,7 +214,7 @@ private fun IdwApp() {
         }
     }
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = Ink,
         bottomBar = {
             NavigationBar(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
@@ -306,7 +306,13 @@ private fun IdwApp() {
                                 var added = 0
                                 for (i in 0 until generated.length()) {
                                     val item = generated.optJSONObject(i) ?: continue
-                                    if (item.optString("question").isNotBlank() && item.optJSONArray("choices")?.length() == 4 && item.optString("answer").isNotBlank()) {
+                                    val options = item.optJSONArray("choices")
+                                    val answerChoice = item.optString("answer").trim()
+                                    val choiceValues = if (options == null) emptyList() else
+                                        (0 until options.length()).map { options.optString(it).trim() }
+                                    val validChoices = choiceValues.size == 4 && choiceValues.all { it.isNotBlank() } && choiceValues.toSet().size == 4
+                                    val answerExists = answerChoice.isNotBlank() && choiceValues.contains(answerChoice)
+                                    if (item.optString("question").isNotBlank() && validChoices && answerExists) {
                                         data.addEntry("quizzes", item.optString("question"), item.toString()); added++
                                     }
                                 }
