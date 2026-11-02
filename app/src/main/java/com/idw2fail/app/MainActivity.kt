@@ -486,16 +486,22 @@ private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: 
 }
 
 @Composable
-private fun SettingsScreen(apiKey: String, onSave: (String) -> Unit, status: String, onExport: () -> Unit, onImport: () -> Unit) {
-    var key by remember(apiKey) { mutableStateOf(apiKey) }
+private fun SettingsScreen(provider: String, keys: Map<String, String>, onSave: (String, String) -> Unit, status: String, onExport: () -> Unit, onImport: () -> Unit) {
+    var selectedProvider by remember(provider) { mutableStateOf(provider) }
+    var keyText by remember(provider, keys) { mutableStateOf(keys[provider] ?: "") }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
         Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(16.dp))
-        Text("AI provider", color = Muted, fontSize = 13.sp)
-        Text("Groq API key", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
-        Text("Get a key from console.groq.com. It is encrypted and saved only on this device.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp, bottom = 12.dp))
-        OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("gsk_…") }, singleLine = true, shape = RoundedCornerShape(15.dp), colors = fieldColors())
-        Button(onClick = { onSave(key) }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) { Icon(Icons.Rounded.Lock, null); Spacer(Modifier.width(8.dp)); Text("Save securely") }
+        Text("AI providers", color = Muted, fontSize = 13.sp)
+        Text("Choose a provider", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.padding(top = 10.dp)) {
+            listOf("Groq", "OpenAI", "Gemini").forEach { name ->
+                FilterChip(selected = selectedProvider == name, onClick = { selectedProvider = name; keyText = keys[name] ?: "" }, label = { Text(name) })
+            }
+        }
+        Text("Add one or more API keys below, one per line. The app tries the next key when a request is rate-limited. Keys are encrypted on this device.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp))
+        OutlinedTextField(value = keyText, onValueChange = { keyText = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Paste API keys, one per line") }, minLines = 3, maxLines = 7, shape = RoundedCornerShape(15.dp), colors = fieldColors())
+        Button(onClick = { onSave(selectedProvider, keyText) }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(50.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) { Icon(Icons.Rounded.Lock, null); Spacer(Modifier.width(8.dp)); Text("Save provider keys") }
         if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(top = 10.dp))
         Spacer(Modifier.height(24.dp))
         Text("Data", color = Muted, fontSize = 13.sp)
@@ -766,19 +772,52 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedPlaceholderColor = Muted, unfocusedPlaceholderColor = Muted
 )
 
-private suspend fun askGroq(apiKey: String, prompt: String, studyContext: String): String = withContext(Dispatchers.IO) {
-    val connection = (URL("https://api.groq.com/openai/v1/chat/completions").openConnection() as HttpURLConnection).apply {
+private suspend fun askWithFallback(provider: String, keys: List<String>, prompt: String, studyContext: String): String {
+    if (keys.isEmpty()) throw Exception("Add at least one $provider API key in Settings.")
+    var lastError: Exception? = null
+    for (key in keys) {
+        try { return askProvider(provider, key, prompt, studyContext) }
+        catch (e: Exception) {
+            lastError = e
+            val message = e.message.orEmpty().lowercase()
+            if (!message.contains("429") && !message.contains("rate") && !message.contains("quota") && !message.contains("temporar") && !message.contains("503")) throw e
+        }
+    }
+    throw Exception("All saved $provider keys are currently unavailable or rate-limited. ${lastError?.message ?: ""}")
+}
+
+private suspend fun askProvider(provider: String, apiKey: String, prompt: String, studyContext: String): String = withContext(Dispatchers.IO) {
+    val system = "You are a kind, clear school study tutor for grades 1–12. Explain simply and accurately. Use this study material when relevant:\\n\\n${studyContext.ifBlank { "No documents have been added yet." }}"
+    val endpoint: String
+    val body: JSONObject
+    when (provider) {
+        "OpenAI" -> {
+            endpoint = "https://api.openai.com/v1/chat/completions"
+            body = JSONObject().put("model", "gpt-4o-mini").put("temperature", 0.5)
+                .put("messages", JSONArray().put(JSONObject().put("role", "system").put("content", system)).put(JSONObject().put("role", "user").put("content", prompt)))
+        }
+        "Gemini" -> {
+            endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey"
+            body = JSONObject().put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
+                .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", prompt)))))
+        }
+        else -> {
+            endpoint = "https://api.groq.com/openai/v1/chat/completions"
+            body = JSONObject().put("model", "openai/gpt-oss-20b").put("temperature", 0.5)
+                .put("messages", JSONArray().put(JSONObject().put("role", "system").put("content", system)).put(JSONObject().put("role", "user").put("content", prompt)))
+        }
+    }
+    val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
         requestMethod = "POST"; connectTimeout = 20000; readTimeout = 60000; doOutput = true
-        setRequestProperty("Authorization", "Bearer $apiKey"); setRequestProperty("Content-Type", "application/json")
+        if (provider != "Gemini") setRequestProperty("Authorization", "Bearer $apiKey")
+        setRequestProperty("Content-Type", "application/json")
     }
     try {
-        val body = JSONObject().put("model", "openai/gpt-oss-20b").put("temperature", 0.5)
-            .put("messages", JSONArray()
-                .put(JSONObject().put("role", "system").put("content", "You are a kind, clear school study tutor for grades 1–12. Explain in simple steps, use examples, and never pretend information is in the student's notes if it is not. Use this provided study material when relevant:\n\n${studyContext.ifBlank { "No documents have been added yet." }}"))
-                .put(JSONObject().put("role", "user").put("content", prompt)))
         connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
         val response = (if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream).bufferedReader().use { it.readText() }
-        if (connection.responseCode !in 200..299) throw Exception(JSONObject(response).optJSONObject("error")?.optString("message") ?: "AI request failed (${connection.responseCode}).")
-        JSONObject(response).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
+        if (connection.responseCode !in 200..299) throw Exception("$provider request failed (${connection.responseCode}): " + (runCatching { JSONObject(response).optJSONObject("error")?.optString("message") }.getOrNull() ?: response.take(180)))
+        val json = JSONObject(response)
+        if (provider == "Gemini") json.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text")
+        else json.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
     } finally { connection.disconnect() }
 }
