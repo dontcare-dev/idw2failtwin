@@ -374,7 +374,34 @@ private fun IdwApp() {
                     onDelete = { data.removeEntry("quizzes", it); refresh++ },
                     onSave = { id, saved -> data.setSaved(id, saved); refresh++ }
                 )
-                "Exams" -> ExamScreen(quizzes = data.entries("quizzes"), onExport = { examPdfPicker.launch("SDS-full-chapter-exam.pdf") })
+                "Exams" -> ExamScreen(exam = data.entries("exams"), generating = busy, status = status, onMake = {
+                    if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
+                    else if (docs.length() == 0) status = "Import a study PDF first."
+                    else scope.launch {
+                        busy = true; status = "Generating five sections from your study material…"
+                        try {
+                            val studyText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
+                            val sections = listOf("MCQ" to "multiple-choice", "True / False" to "true-or-false", "Short answer" to "short-answer", "Question answer" to "medium-length written-answer", "Long answer" to "long-answer")
+                            val all = JSONArray()
+                            for ((label, format) in sections) {
+                                val prompt = "Create exactly 20 distinct $format school exam questions based only on the supplied syllabus and study material. Cover the major topics broadly, not just the first pages. Return ONLY a JSON array of objects with fields type (exactly '$label'), question, choices (four strings for MCQ, ['True','False'] for True / False, omit for written questions), answer (correct answer or marking points), and points (integer). No repeated questions. No markdown."
+                                val raw = askWithFallback(aiProvider, vault.keys(aiProvider), prompt, studyText)
+                                val a = raw.indexOf('['); val b = raw.lastIndexOf(']')
+                                if (a < 0 || b <= a) throw Exception("The AI returned an invalid $label section. Try again.")
+                                val batch = JSONArray(raw.substring(a, b + 1))
+                                if (batch.length() < 15) throw Exception("The $label section returned too few questions. Try again.")
+                                for (j in 0 until minOf(20, batch.length())) { val item = batch.optJSONObject(j) ?: continue; if (item.optString("question").isNotBlank()) all.put(item) }
+                            }
+                            if (all.length() != 100) throw Exception("The paper contained ${all.length()} valid questions instead of 100. Try again.")
+                            val paper = JSONObject().put("questions", all).put("createdAt", System.currentTimeMillis())
+                            val previous = data.entries("exams")
+                            for (i in 0 until previous.length()) data.removeEntry("exams", previous.optJSONObject(i)?.optString("id") ?: "")
+                            data.addEntry("exams", "100-question exam", paper.toString()); refresh++
+                            status = "100 questions generated across five sections."
+                        } catch (e: Exception) { status = e.message ?: "Exam generation failed." }
+                        busy = false
+                    }
+                }, onExport = { examPdfPicker.launch("SDS-100-question-exam.pdf") })
                 "Progress" -> ProgressScreen(
                     documentCount = docs.length(),
                     cardCount = data.entries("flashcards").length(),
@@ -767,35 +794,54 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
 }
 
 @Composable
-private fun ExamScreen(quizzes: JSONArray, onExport: () -> Unit) {
+private fun ExamScreen(exam: JSONArray, generating: Boolean, status: String, onMake: () -> Unit, onExport: () -> Unit) {
+    val paper = if (exam.length() > 0) runCatching { JSONObject(exam.optJSONObject(0)?.optString("body") ?: "{}") }.getOrElse { JSONObject() } else JSONObject()
+    val questions = paper.optJSONArray("questions") ?: JSONArray()
+    var answers by remember { mutableStateOf(mapOf<Int, String>()) }
     var started by remember { mutableStateOf(false) }
-    var secondsLeft by remember { mutableIntStateOf(3 * 60 * 60) }
-    var finished by remember { mutableStateOf(false) }
-    LaunchedEffect(started, finished) {
-        while (started && !finished && secondsLeft > 0) { delay(1000); secondsLeft-- }
-        if (secondsLeft == 0) { finished = true; started = false }
+    var secondsLeft by remember { mutableIntStateOf(10800) }
+    var submitted by remember { mutableStateOf(false) }
+    LaunchedEffect(started, submitted) {
+        while (started && !submitted && secondsLeft > 0) { delay(1000); secondsLeft-- }
+        if (secondsLeft == 0) { started = false; submitted = true }
     }
-    val hours = secondsLeft / 3600
-    val minutes = (secondsLeft % 3600) / 60
-    val seconds = secondsLeft % 60
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp)) {
-        Text("Examinations", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
-        
-        Column(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(Color(0xFFEAF4F1), Color(0xFFF1EEF8)))).padding(20.dp)) {
-            Text("MOCK EXAM", color = Color.White.copy(alpha = .75f), fontSize = 10.sp, letterSpacing = 1.6.sp)
-            Text("3:00:00", fontSize = 36.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
-            Text("100 questions · Mixed question types", color = Muted, fontSize = 11.sp)
-            if (started) Text("TIME LEFT  %02d:%02d:%02d".format(hours, minutes, seconds), color = Gold, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
-            if (finished) Text("Time is up. Review your answers and prepare for the next attempt.", color = Coral, modifier = Modifier.padding(top = 12.dp))
-            Button(onClick = { if (!started) { secondsLeft = 10800; finished = false; started = true } else { started = false; finished = true } }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink)) {
-                Text(if (started) "Submit exam" else "Start three-hour exam")
-            }
+        Text("Exams", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Text("100-question exam paper", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        Button(onClick = onMake, enabled = !generating, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(50.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) {
+            if (generating) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Icon(Icons.Rounded.Description, null)
+            Spacer(Modifier.width(8.dp)); Text(if (generating) "Creating 100 questions…" else "Make exam paper")
         }
-        Text("Question paper", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 22.dp, bottom = 6.dp))
-        Text("${quizzes.length()} MCQs currently available from your study material.", color = Muted, fontSize = 12.sp)
-        Text("Export a printable question-paper PDF. Import a chapter PDF and generate MCQs first to build the paper.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 8.dp))
-        Button(onClick = onExport, enabled = quizzes.length() > 0, modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Ink)) {
-            Icon(Icons.Rounded.PictureAsPdf, null); Spacer(Modifier.width(8.dp)); Text("Export exam question paper")
+        if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
+        if (questions.length() == 0) EmptyState("No exam paper yet", "Import a PDF, then make an exam paper.", Icons.Rounded.Description)
+        else {
+            Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${questions.length()} questions", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f)); Text("3 hours", color = Violet, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text("MCQ · True/False · Short · Written · Long answer", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+            Button(onClick = { if (started) { started = false } else { started = true; submitted = false; secondsLeft = 10800 } }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color.White)) { Text(if (started) "Pause exam" else "Start exam") }
+            if (started) Text("Time left  %02d:%02d:%02d".format(secondsLeft / 3600, (secondsLeft % 3600) / 60, secondsLeft % 60), color = Coral, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+            if (submitted) Text("Exam submitted.", color = Mint, modifier = Modifier.padding(top = 8.dp))
+            var lastSection = ""
+            for (i in 0 until questions.length()) {
+                val q = questions.optJSONObject(i) ?: continue
+                val type = q.optString("type", "Short answer")
+                if (type != lastSection) { lastSection = type; Text(type, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Violet, modifier = Modifier.padding(top = 22.dp, bottom = 8.dp)) }
+                Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).background(Panel, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFF17191D).copy(alpha = .08f), RoundedCornerShape(14.dp)).padding(13.dp)) {
+                    Text("${i + 1}. ${q.optString("question")}", fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = 19.sp)
+                    val choices = q.optJSONArray("choices")
+                    if (choices != null) for (j in 0 until choices.length()) {
+                        val choice = choices.optString(j)
+                        Row(Modifier.fillMaxWidth().clickable(enabled = !submitted) { answers = answers + (i to choice) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = answers[i] == choice, onClick = { answers = answers + (i to choice) }, enabled = !submitted)
+                            Text(choice, fontSize = 12.sp)
+                        }
+                    } else OutlinedTextField(value = answers[i] ?: "", onValueChange = { answers = answers + (i to it) }, enabled = !submitted, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), minLines = if (type == "Long answer") 4 else 2, colors = fieldColors())
+                }
+            }
+            Button(onClick = { submitted = true; started = false }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) { Text("Submit answers") }
+            OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Icon(Icons.Rounded.PictureAsPdf, null); Spacer(Modifier.width(8.dp)); Text("Export question paper PDF") }
         }
     }
 }
