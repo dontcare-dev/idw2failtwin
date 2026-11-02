@@ -367,7 +367,10 @@ private fun IdwApp() {
                                             }
                                         }
                                     val uniqueChoices = choiceValues.map { it.lowercase() }.toSet().size == 4
+                                    val answerLabel = answerChoice.uppercase().removePrefix("OPTION ").trim().removeSuffix(".")
                                     val correctChoice = choiceValues.firstOrNull { it.equals(answerChoice, true) }
+                                        ?: answerLabel.takeIf { it.length == 1 && it[0] in 'A'..'D' }
+                                            ?.let { choiceValues.getOrNull(it[0] - 'A') }
                                     val questionText = item.optString("question").trim()
                                     if (questionText.isNotBlank() && choiceValues.size == 4 && choiceValues.all { it.isNotBlank() } && uniqueChoices && correctChoice != null) {
                                         val duplicate = (0 until data.entries("quizzes").length()).any { data.entries("quizzes").optJSONObject(it)?.optString("title")?.trim()?.equals(questionText, true) == true }
@@ -745,7 +748,10 @@ private fun readMcqChoices(detail: JSONObject): List<String> {
 
 private fun readMcqAnswer(detail: JSONObject, choices: List<String>): String {
     val answer = detail.optString("answer", detail.optString("correct_answer")).trim()
-    return choices.firstOrNull { it.equals(answer, true) } ?: ""
+    val matched = choices.firstOrNull { it.equals(answer, true) }
+    if (matched != null) return matched
+    val label = answer.uppercase().removePrefix("OPTION ").trim().removeSuffix(".")
+    return if (label.length == 1 && label[0] in 'A'..'D') choices.getOrNull(label[0] - 'A').orEmpty() else ""
 }
 
 @Composable
