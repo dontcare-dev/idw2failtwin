@@ -11,6 +11,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
@@ -186,11 +189,14 @@ private fun IdwApp() {
                     canvas.drawText("SDS-IDW2FAILTWIN", 40f, y, titlePaint); y += 30f
                     canvas.drawText("FULL-CHAPTER MOCK EXAM · 3 HOURS", 40f, y, paint); y += 34f
                     canvas.drawText("Name: ____________________    Date: ______________", 40f, y, paint); y += 34f
-                    val qs = data.entries("quizzes")
+                    val saved = data.entries("exams")
+                    val paper = if (saved.length() > 0) runCatching { JSONObject(saved.optJSONObject(0)?.optString("body") ?: "{}") }.getOrElse { JSONObject() } else JSONObject()
+                    val qs = paper.optJSONArray("questions") ?: JSONArray()
                     for (i in 0 until qs.length()) {
                         val q = qs.optJSONObject(i) ?: continue
-                        val detail = runCatching { JSONObject(q.optString("body")) }.getOrElse { JSONObject() }
-                        val lines = listOf("${i + 1}. ${q.optString("title")}") + (0 until (detail.optJSONArray("choices")?.length() ?: 0)).map { n -> "   ${'A' + n}. ${detail.optJSONArray("choices")?.optString(n)}" } + listOf("")
+                        val lines = listOf("${i + 1}. [${q.optString("type")}] ${q.optString("question")}") +
+                            (0 until (q.optJSONArray("choices")?.length() ?: 0)).map { n -> "   ${'A' + n}. ${q.optJSONArray("choices")?.optString(n)}" } +
+                            listOf("   Marks: ${q.optInt("points", 1)}", "")
                         for (line in lines) {
                             if (y > 790f) { pdf.finishPage(page); pageNo++; page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create()); canvas = page.canvas; y = 50f }
                             canvas.drawText(line.take(90), 40f, y, paint); y += 20f
@@ -722,6 +728,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
     var selectedAnswer by remember(refresh) { mutableStateOf("") }
     var score by remember(refresh) { mutableIntStateOf(0) }
     var savedOnly by remember { mutableStateOf(false) }
+    var celebration by remember { mutableIntStateOf(0) }
     val allQuestions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
     val questions = allQuestions.filter { !savedOnly || it.optBoolean("saved") }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
@@ -755,7 +762,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                 val chosen = selectedAnswer == option
                 val isCorrect = option == correctAnswer
                 OutlinedButton(
-                    onClick = { if (selectedAnswer.isBlank()) { selectedAnswer = option; if (isCorrect) score++ } },
+                    onClick = { if (selectedAnswer.isBlank()) { selectedAnswer = option; if (isCorrect) { score++; celebration++ } } },
                     enabled = selectedAnswer.isBlank(),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     shape = RoundedCornerShape(14.dp),
@@ -767,6 +774,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             if (selectedAnswer.isNotBlank()) {
                 val correct = selectedAnswer == correctAnswer
                 if (correct) {
+                    ConfettiBurst(trigger = celebration)
                     Row(Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFE4F5EF)).padding(12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                         listOf(Coral, Gold, Violet, Mint, Color(0xFF9CCBFF)).forEach { balloon ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -842,6 +850,27 @@ private fun ExamScreen(exam: JSONArray, generating: Boolean, status: String, onM
             }
             Button(onClick = { submitted = true; started = false }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) { Text("Submit answers") }
             OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Icon(Icons.Rounded.PictureAsPdf, null); Spacer(Modifier.width(8.dp)); Text("Export question paper PDF") }
+        }
+    }
+}
+
+@Composable
+private fun ConfettiBurst(trigger: Int) {
+    val progress = remember { Animatable(1f) }
+    LaunchedEffect(trigger) {
+        if (trigger > 0) { progress.snapTo(0f); progress.animateTo(1f, animationSpec = tween(1250)) }
+    }
+    if (trigger > 0 && progress.value < 1f) {
+        Canvas(Modifier.fillMaxWidth().height(145.dp)) {
+            val t = progress.value
+            val colors = listOf(Coral, Gold, Violet, Mint, Color(0xFF5C9CE6), Color(0xFFEC75A8))
+            for (i in 0 until 110) {
+                val angle = (i * 137.5 * Math.PI / 180.0)
+                val spread = 0.22f + (i % 9) * 0.095f
+                val x = size.width * 0.5f + kotlin.math.cos(angle).toFloat() * size.width * spread * t
+                val y = -8f + t * (size.height + (i % 5) * 15f) + kotlin.math.sin(angle).toFloat() * 22f * t
+                if (y < size.height + 12f) drawCircle(colors[i % colors.size], radius = 2.5f + (i % 3), center = Offset(x, y))
+            }
         }
     }
 }
