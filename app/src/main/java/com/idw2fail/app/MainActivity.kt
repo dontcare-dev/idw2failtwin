@@ -767,7 +767,6 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
     }
 }
 
-@Composable
 private fun extractTutorResponse(raw: String): Pair<String, JSONObject?> {
     val start = raw.indexOf('{')
     val end = raw.lastIndexOf('}')
@@ -788,7 +787,6 @@ private fun StudyWhiteboard(board: JSONObject) {
         Canvas(Modifier.fillMaxWidth().height(210.dp).padding(top = 8.dp)) {
             val scaleX = size.width / 1000f
             val scaleY = size.height / 1000f
-            val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(35, 43, 54); strokeWidth = 3f; style = Paint.Style.STROKE }
             val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(35, 43, 54); textSize = 30f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
             for (i in 0 until minOf(elements.length(), 24)) {
                 val element = elements.optJSONObject(i) ?: continue
