@@ -118,6 +118,11 @@ private class LocalData(context: android.content.Context) {
         for (i in 0 until list.length()) { val item = list.optJSONObject(i); if (item?.optString("id") == id) item.put("done", done) }
         d.put(bucket, list); write(d)
     }
+    fun setSaved(id: String, saved: Boolean) {
+        val d = read(); val list = d.optJSONArray("quizzes") ?: JSONArray()
+        for (i in 0 until list.length()) { val item = list.optJSONObject(i); if (item?.optString("id") == id) item.put("saved", saved) }
+        d.put("quizzes", list); write(d)
+    }
     fun removeEntry(bucket: String, id: String) {
         val d = read(); val old = d.optJSONArray(bucket) ?: JSONArray(); val next = JSONArray()
         for (i in 0 until old.length()) if (old.optJSONObject(i)?.optString("id") != id) next.put(old.get(i))
@@ -324,7 +329,8 @@ private fun IdwApp() {
                             busy = false
                         }
                     },
-                    onDelete = { data.removeEntry("quizzes", it); refresh++ }
+                    onDelete = { data.removeEntry("quizzes", it); refresh++ },
+                    onSave = { id, saved -> data.setSaved(id, saved); refresh++ }
                 )
                 "Progress" -> ProgressScreen(
                     documentCount = docs.length(),
@@ -633,14 +639,19 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
 }
 
 @Composable
-private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit) {
+private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit) {
     var index by remember(refresh) { mutableIntStateOf(0) }
     var selectedAnswer by remember(refresh) { mutableStateOf("") }
     var score by remember(refresh) { mutableIntStateOf(0) }
-    val questions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
+    var savedOnly by remember { mutableStateOf(false) }
+    val allQuestions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
+    val questions = allQuestions.filter { !savedOnly || it.optBoolean("saved") }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
-        Text("Quizzes", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
-        
+        Text("MCQ practice", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
+            FilterChip(selected = !savedOnly, onClick = { savedOnly = false; index = 0; selectedAnswer = "" }, label = { Text("All questions") })
+            FilterChip(selected = savedOnly, onClick = { savedOnly = true; index = 0; selectedAnswer = "" }, label = { Text("Saved") }, leadingIcon = { Icon(Icons.Rounded.Bookmark, null) })
+        }
         Button(onClick = onGenerate, enabled = !generating, modifier = Modifier.fillMaxWidth().height(49.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
             if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Ink) else Icon(Icons.Rounded.AutoAwesome, null)
             Spacer(Modifier.width(8.dp)); Text(if (generating) "Generating questions…" else "Generate quiz from PDFs")
@@ -653,7 +664,13 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             val detail = runCatching { JSONObject(question.optString("body")) }.getOrElse { JSONObject() }
             val choices = detail.optJSONArray("choices") ?: JSONArray()
             val correctAnswer = detail.optString("answer")
-            Text("QUESTION ${index + 1} OF ${questions.size}", color = Accent, fontSize = 10.sp, letterSpacing = 1.4.sp, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 9.dp)) {
+                Text("QUESTION ${index + 1} OF ${questions.size}", color = Violet, fontSize = 10.sp, letterSpacing = 1.4.sp)
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { onSave(question.optString("id"), !question.optBoolean("saved")) }) {
+                    Icon(if (question.optBoolean("saved")) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, "Save question", tint = if (question.optBoolean("saved")) Gold else Muted)
+                }
+            }
             Text(question.optString("title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp, modifier = Modifier.padding(bottom = 14.dp))
             for (i in 0 until choices.length()) {
                 val option = choices.optString(i)
@@ -671,7 +688,17 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             }
             if (selectedAnswer.isNotBlank()) {
                 val correct = selectedAnswer == correctAnswer
-                Text(if (correct) "Correct" else "Not quite. Correct answer: $correctAnswer", color = if (correct) Mint else Color(0xFFFFC78C), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                if (correct) {
+                    Row(Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFF173B35)).padding(12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                        listOf(Coral, Gold, Violet, Mint, Color(0xFF9CCBFF)).forEach { balloon ->
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.size(19.dp, 23.dp).clip(RoundedCornerShape(50)).background(balloon))
+                                Box(Modifier.width(1.dp).height(8.dp).background(Color.White.copy(alpha = .6f)))
+                            }
+                        }
+                        Text("That's right!", color = Mint, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                } else Text("Not quite. Correct answer: $correctAnswer", color = Coral, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
                 Text(detail.optString("explanation"), color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp))
             }
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
