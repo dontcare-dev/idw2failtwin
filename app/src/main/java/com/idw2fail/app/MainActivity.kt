@@ -1,6 +1,9 @@
 package com.idw2fail.app
 
 import android.os.Bundle
+import android.graphics.pdf.PdfDocument
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,6 +38,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -168,6 +172,38 @@ private fun IdwApp() {
             } catch (e: Exception) { status = e.message ?: "Backup export failed." }
         }
     }
+    val examPdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null) scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val pdf = PdfDocument()
+                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f; color = android.graphics.Color.BLACK }
+                    val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 20f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = android.graphics.Color.BLACK }
+                    var pageNo = 1
+                    var page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create())
+                    var canvas = page.canvas
+                    var y = 52f
+                    canvas.drawText("SDS-IDW2FAILTWIN", 40f, y, titlePaint); y += 30f
+                    canvas.drawText("FULL-CHAPTER MOCK EXAM · 3 HOURS", 40f, y, paint); y += 34f
+                    canvas.drawText("Name: ____________________    Date: ______________", 40f, y, paint); y += 34f
+                    val qs = data.entries("quizzes")
+                    for (i in 0 until qs.length()) {
+                        val q = qs.optJSONObject(i) ?: continue
+                        val detail = runCatching { JSONObject(q.optString("body")) }.getOrElse { JSONObject() }
+                        val lines = listOf("${i + 1}. ${q.optString("title")}") + (0 until (detail.optJSONArray("choices")?.length() ?: 0)).map { n -> "   ${'A' + n}. ${detail.optJSONArray("choices")?.optString(n)}" } + listOf("")
+                        for (line in lines) {
+                            if (y > 790f) { pdf.finishPage(page); pageNo++; page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create()); canvas = page.canvas; y = 50f }
+                            canvas.drawText(line.take(90), 40f, y, paint); y += 20f
+                        }
+                    }
+                    pdf.finishPage(page)
+                    val output = context.contentResolver.openOutputStream(uri) ?: throw Exception("Could not create exam PDF.")
+                    output.use { pdf.writeTo(it) }; pdf.close()
+                }
+                status = "Exam PDF exported."
+            } catch (e: Exception) { status = e.message ?: "Exam PDF export failed." }
+        }
+    }
     val backupPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             try {
@@ -298,7 +334,7 @@ private fun IdwApp() {
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
-                    onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }
+                    onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onExams = { page = "Exams" }
                 )
                 "Quizzes" -> QuizScreen(
                     quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
@@ -334,6 +370,7 @@ private fun IdwApp() {
                     onDelete = { data.removeEntry("quizzes", it); refresh++ },
                     onSave = { id, saved -> data.setSaved(id, saved); refresh++ }
                 )
+                "Exams" -> ExamScreen(quizzes = data.entries("quizzes"), onExport = { examPdfPicker.launch("SDS-full-chapter-exam.pdf") })
                 "Progress" -> ProgressScreen(
                     documentCount = docs.length(),
                     cardCount = data.entries("flashcards").length(),
@@ -631,13 +668,15 @@ private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (
 }
 
 @Composable
-private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit) {
+private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onExams: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
         Text("More", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(16.dp))
         QuickRow("Flashcards", "Review your saved cards", Icons.Rounded.Style, onFlashcards)
         Spacer(Modifier.height(9.dp))
         QuickRow("MCQ practice", "AI-generated multiple-choice tests", Icons.Rounded.Quiz, onQuizzes)
+        Spacer(Modifier.height(9.dp))
+        QuickRow("Exams", "Three-hour full-chapter mock exam and PDF paper", Icons.Rounded.Description, onExams)
         Spacer(Modifier.height(9.dp))
         QuickRow("Revision planner", "$taskCount study tasks", Icons.Rounded.EventNote, onPlanner)
         Spacer(Modifier.height(9.dp))
@@ -720,6 +759,40 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             TextButton(onClick = { onDelete(question.optString("id")) }, modifier = Modifier.align(Alignment.End)) {
                 Icon(Icons.Rounded.DeleteOutline, null, tint = Muted); Text("Remove question", color = Muted)
             }
+        }
+    }
+}
+
+@Composable
+private fun ExamScreen(quizzes: JSONArray, onExport: () -> Unit) {
+    var started by remember { mutableStateOf(false) }
+    var secondsLeft by remember { mutableIntStateOf(3 * 60 * 60) }
+    var finished by remember { mutableStateOf(false) }
+    LaunchedEffect(started, finished) {
+        while (started && !finished && secondsLeft > 0) { delay(1000); secondsLeft-- }
+        if (secondsLeft == 0) { finished = true; started = false }
+    }
+    val hours = secondsLeft / 3600
+    val minutes = (secondsLeft % 3600) / 60
+    val seconds = secondsLeft % 60
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp)) {
+        Text("Examinations", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Text("SDS · Full-chapter assessment", color = Violet, fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+        Column(Modifier.fillMaxWidth().padding(top = 18.dp).clip(RoundedCornerShape(22.dp)).background(Brush.linearGradient(listOf(Color(0xFF29394B), Color(0xFF493344)))).padding(20.dp)) {
+            Text("MOCK EXAM", color = Color.White.copy(alpha = .75f), fontSize = 10.sp, letterSpacing = 1.6.sp)
+            Text("3:00:00", fontSize = 36.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+            Text("Three-hour timed paper · Full chapter · No XP or game rewards", color = Color.White.copy(alpha = .8f), fontSize = 11.sp, lineHeight = 17.sp)
+            if (started) Text("TIME LEFT  %02d:%02d:%02d".format(hours, minutes, seconds), color = Gold, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+            if (finished) Text("Time is up. Review your answers and prepare for the next attempt.", color = Coral, modifier = Modifier.padding(top = 12.dp))
+            Button(onClick = { if (!started) { secondsLeft = 10800; finished = false; started = true } else { started = false; finished = true } }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Ink)) {
+                Text(if (started) "Submit exam" else "Start three-hour exam")
+            }
+        }
+        Text("Question paper", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 22.dp, bottom = 6.dp))
+        Text("${quizzes.length()} MCQs currently available from your study material.", color = Muted, fontSize = 12.sp)
+        Text("Export a printable question-paper PDF. Import a chapter PDF and generate MCQs first to build the paper.", color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 8.dp))
+        Button(onClick = onExport, enabled = quizzes.length() > 0, modifier = Modifier.fillMaxWidth().padding(top = 14.dp).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Ink)) {
+            Icon(Icons.Rounded.PictureAsPdf, null); Spacer(Modifier.width(8.dp)); Text("Export exam question paper")
         }
     }
 }
