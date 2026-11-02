@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -125,10 +126,15 @@ private class LocalData(context: android.content.Context) {
         for (i in 0 until list.length()) { val item = list.optJSONObject(i); if (item?.optString("id") == id) item.put("done", done) }
         d.put(bucket, list); write(d)
     }
-    fun setSaved(id: String, saved: Boolean) {
-        val d = read(); val list = d.optJSONArray("quizzes") ?: JSONArray()
-        for (i in 0 until list.length()) { val item = list.optJSONObject(i); if (item?.optString("id") == id) item.put("saved", saved) }
-        d.put("quizzes", list); write(d)
+    fun setSaved(bucket: String, id: String, saved: Boolean) {
+        val d = read()
+        val list = d.optJSONArray(bucket) ?: JSONArray()
+        for (i in 0 until list.length()) {
+            val item = list.optJSONObject(i)
+            if (item?.optString("id") == id) item.put("saved", saved)
+        }
+        d.put(bucket, list)
+        write(d)
     }
     fun removeEntry(bucket: String, id: String) {
         val d = read(); val old = d.optJSONArray(bucket) ?: JSONArray(); val next = JSONArray()
@@ -160,6 +166,7 @@ private fun IdwApp() {
     var apiKeys by remember { mutableStateOf(listOf("Groq", "OpenAI", "Gemini").associateWith { vault.keys(it).joinToString("\n") }) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
+    var studyBoard by remember { mutableStateOf<JSONObject?>(null) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -295,13 +302,17 @@ private fun IdwApp() {
             when (currentPage) {
                 "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
                 "Library" -> LibraryScreen(docs, busy, status, onAdd = { picker.launch(arrayOf("application/pdf")) }, onDelete = { data.removeDocument(it); refresh++ })
-                "Study" -> StudyScreen(question, { question = it }, answer, busy, status, onAsk = {
+                "Study" -> StudyScreen(question, { question = it }, answer, studyBoard, busy, status, onAsk = {
                     if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                     else scope.launch {
-                        busy = true; answer = ""; status = "Thinking…"
+                        busy = true; answer = ""; studyBoard = null; status = "Mochi is thinking…"
                         try {
                             val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
-                            answer = askWithFallback(aiProvider, vault.keys(aiProvider), question, contextText); status = ""
+                            val raw = askWithFallback(aiProvider, vault.keys(aiProvider), question, contextText)
+                            val parsed = extractTutorResponse(raw)
+                            answer = parsed.first
+                            studyBoard = parsed.second
+                            status = ""
                         } catch (e: Exception) { status = e.message ?: "AI request failed." }
                         busy = false
                     }
@@ -334,7 +345,8 @@ private fun IdwApp() {
                         }
                     },
                     onAdd = { front, back -> data.addEntry("flashcards", front, back); refresh++ },
-                    onDelete = { data.removeEntry("flashcards", it); refresh++ }
+                    onDelete = { data.removeEntry("flashcards", it); refresh++ },
+                    onSave = { id, saved -> data.setSaved("flashcards", id, saved); refresh++ }
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
@@ -390,7 +402,7 @@ private fun IdwApp() {
                         }
                     },
                     onDelete = { data.removeEntry("quizzes", it); refresh++ },
-                    onSave = { id, saved -> data.setSaved(id, saved); refresh++ }
+                    onSave = { id, saved -> data.setSaved("quizzes", id, saved); refresh++ }
                 )
                 "Exams" -> ExamScreen(exam = data.entries("exams"), generating = busy, status = status, onMake = {
                     if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
@@ -530,7 +542,7 @@ private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd:
 }
 
 @Composable
-private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: String, busy: Boolean, status: String, onAsk: () -> Unit) {
+private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: String, board: JSONObject?, busy: Boolean, status: String, onAsk: () -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().imePadding(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
@@ -562,11 +574,15 @@ private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: 
         if (status.isNotBlank()) item { Text(status, color = Mint, fontSize = 12.sp) }
         if (answer.isNotBlank()) {
             item {
-                Text("Answer", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Pets, null, tint = Violet, modifier = Modifier.size(23.dp))
+                    Text("Mochi · Study cat", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+                }
                 Text(answer, fontSize = 14.sp, lineHeight = 22.sp,
                     modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp))
             }
         }
+        if (board != null) item { StudyWhiteboard(board) }
     }
 }
 
@@ -602,18 +618,26 @@ private fun SettingsScreen(provider: String, keys: Map<String, String>, onSave: 
 
 
 @Composable
-private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onAdd: (String, String) -> Unit, onDelete: (String) -> Unit) {
+private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onAdd: (String, String) -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit) {
     var front by remember { mutableStateOf("") }
     var back by remember { mutableStateOf("") }
-    var index by remember(refresh) { mutableIntStateOf(0) }
-    var revealed by remember(refresh) { mutableStateOf(false) }
-    val items = (0 until cards.length()).mapNotNull { cards.optJSONObject(it) }
+    var index by remember { mutableIntStateOf(0) }
+    var revealed by remember { mutableStateOf(false) }
+    var savedOnly by remember { mutableStateOf(false) }
+    val allCards = (0 until cards.length()).mapNotNull { cards.optJSONObject(it) }
+    val items = allCards.filter { !savedOnly || it.optBoolean("saved") }
     LazyColumn(
         modifier = Modifier.fillMaxSize().imePadding(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item { Text("Flashcards", fontSize = 28.sp, fontWeight = FontWeight.SemiBold) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !savedOnly, onClick = { savedOnly = false; index = 0; revealed = false }, label = { Text("All cards") })
+                FilterChip(selected = savedOnly, onClick = { savedOnly = true; index = 0; revealed = false }, label = { Text("Saved") }, leadingIcon = { Icon(Icons.Rounded.Bookmark, null) })
+            }
+        }
         item {
             OutlinedButton(onClick = onGenerate, enabled = !generating,
                 modifier = Modifier.fillMaxWidth().height(48.dp), shape = RoundedCornerShape(14.dp),
@@ -658,6 +682,15 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
         } else {
             val card = items[index.coerceIn(0, items.lastIndex)]
             item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("CARD ${index + 1} OF ${items.size}", color = Violet, fontSize = 10.sp, letterSpacing = 1.2.sp)
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = { onSave(card.optString("id"), !card.optBoolean("saved")) }) {
+                        Icon(if (card.optBoolean("saved")) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder, "Save card", tint = if (card.optBoolean("saved")) Gold else Muted)
+                    }
+                }
+            }
+            item {
                 Column(
                     Modifier.fillMaxWidth().heightIn(min = 190.dp).clip(RoundedCornerShape(20.dp))
                         .background(Color.White.copy(alpha = .07f)).border(1.dp, Color.White.copy(alpha = .2f), RoundedCornerShape(20.dp))
@@ -684,7 +717,7 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
                 }
             }
             item {
-                TextButton(onClick = { onDelete(card.optString("id")); index = 0; revealed = false },
+                TextButton(onClick = { onDelete(card.optString("id")); index = (index - 1).coerceAtLeast(0); revealed = false },
                     modifier = Modifier.fillMaxWidth()) { Text("Delete card", color = Muted) }
             }
         }
@@ -735,6 +768,54 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
 }
 
 @Composable
+private fun extractTutorResponse(raw: String): Pair<String, JSONObject?> {
+    val start = raw.indexOf('{')
+    val end = raw.lastIndexOf('}')
+    if (start < 0 || end <= start) return raw.trim() to null
+    return runCatching {
+        val result = JSONObject(raw.substring(start, end + 1))
+        val explanation = result.optString("answer").trim()
+        val board = result.optJSONObject("board")
+        (explanation.ifBlank { raw.trim() }) to board?.takeIf { it.optJSONArray("elements")?.length()?.let { count -> count > 0 } == true }
+    }.getOrElse { raw.trim() to null }
+}
+
+@Composable
+private fun StudyWhiteboard(board: JSONObject) {
+    val elements = board.optJSONArray("elements") ?: JSONArray()
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFDDE2E8), RoundedCornerShape(16.dp)).padding(12.dp)) {
+        Text(board.optString("title").ifBlank { "Whiteboard" }, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Canvas(Modifier.fillMaxWidth().height(210.dp).padding(top = 8.dp)) {
+            val scaleX = size.width / 1000f
+            val scaleY = size.height / 1000f
+            val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(35, 43, 54); strokeWidth = 3f; style = Paint.Style.STROKE }
+            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(35, 43, 54); textSize = 30f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            for (i in 0 until minOf(elements.length(), 24)) {
+                val element = elements.optJSONObject(i) ?: continue
+                when (element.optString("type").lowercase()) {
+                    "line" -> drawLine(
+                        Color(0xFF28313D),
+                        Offset(element.optDouble("x1", 0.0).toFloat() * scaleX, element.optDouble("y1", 0.0).toFloat() * scaleY),
+                        Offset(element.optDouble("x2", 0.0).toFloat() * scaleX, element.optDouble("y2", 0.0).toFloat() * scaleY),
+                        strokeWidth = 2.5.dp.toPx()
+                    )
+                    "circle" -> drawCircle(
+                        Color(0xFF6950A1),
+                        radius = element.optDouble("r", 24.0).toFloat().coerceIn(5f, 180f) * minOf(scaleX, scaleY),
+                        center = Offset(element.optDouble("cx", 0.0).toFloat() * scaleX, element.optDouble("cy", 0.0).toFloat() * scaleY),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5.dp.toPx())
+                    )
+                    "text" -> {
+                        val x = element.optDouble("x", 0.0).toFloat().coerceIn(0f, 1000f) * scaleX
+                        val y = element.optDouble("y", 0.0).toFloat().coerceIn(25f, 980f) * scaleY
+                        drawContext.canvas.nativeCanvas.drawText(element.optString("value").take(42), x, y, textPaint)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun readMcqChoices(detail: JSONObject): List<String> {
     val choices = detail.optJSONArray("choices") ?: detail.optJSONArray("options") ?: return emptyList()
     return (0 until choices.length()).map { index ->
@@ -756,9 +837,9 @@ private fun readMcqAnswer(detail: JSONObject, choices: List<String>): String {
 
 @Composable
 private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit) {
-    var index by remember(refresh) { mutableIntStateOf(0) }
-    var selectedAnswer by remember(refresh) { mutableStateOf("") }
-    var score by remember(refresh) { mutableIntStateOf(0) }
+    var index by remember { mutableIntStateOf(0) }
+    var selectedAnswer by remember { mutableStateOf("") }
+    var score by remember { mutableIntStateOf(0) }
     var savedOnly by remember { mutableStateOf(false) }
     var celebration by remember { mutableIntStateOf(0) }
     val allQuestions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
@@ -986,7 +1067,7 @@ private suspend fun askWithFallback(provider: String, keys: List<String>, prompt
 }
 
 private suspend fun askProvider(provider: String, apiKey: String, prompt: String, studyContext: String): String = withContext(Dispatchers.IO) {
-    val system = "You are a kind, clear school study tutor for grades 1–12. Explain simply and accurately. Use this study material when relevant:\\n\\n${studyContext.ifBlank { "No documents have been added yet." }}"
+    val system = "You are Mochi, a friendly cat study tutor for school students in grades 1–12. Explain clearly and accurately in simple language. When a small diagram would genuinely help, include a lightweight whiteboard drawing made from vector elements, not an image. Return only a JSON object with answer (string) and board (object or null). A board object has title and elements. Each element is either {type:'line',x1:0,y1:0,x2:0,y2:0}, {type:'circle',cx:0,cy:0,r:30}, or {type:'text',x:0,y:0,value:'label'}. Coordinates use a 0 to 1000 canvas. Keep to 12 elements, label important parts, and use board:null when a drawing adds no value. For a pendulum, draw its support, string, bob, and labels. Use this study material when relevant:\\n\\n${studyContext.ifBlank { "No documents have been added yet." }}"
     val endpoint: String
     val body: JSONObject
     when (provider) {
