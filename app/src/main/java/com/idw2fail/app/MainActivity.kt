@@ -137,8 +137,9 @@ private class KeyVault(context: android.content.Context) {
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
-    fun get(): String = prefs.getString("groq_key", "") ?: ""
-    fun save(value: String) { prefs.edit().putString("groq_key", value.trim()).apply() }
+    fun provider(): String = prefs.getString("provider", "Groq") ?: "Groq"
+    fun keys(provider: String): List<String> = (prefs.getString("keys_$provider", "") ?: "").lineSequence().map { it.trim() }.filter { it.isNotBlank() }.distinct().toList()
+    fun save(provider: String, value: String) { prefs.edit().putString("provider", provider).putString("keys_$provider", value.lines().map { it.trim() }.filter { it.isNotBlank() }.distinct().joinToString("\n")).apply() }
 }
 
 @Composable
@@ -148,7 +149,8 @@ private fun IdwApp() {
     val vault = remember { KeyVault(context) }
     var page by remember { mutableStateOf("Home") }
     var refresh by remember { mutableIntStateOf(0) }
-    var apiKey by remember { mutableStateOf(vault.get()) }
+    var aiProvider by remember { mutableStateOf(vault.provider()) }
+    var apiKeys by remember { mutableStateOf(listOf("Groq", "OpenAI", "Gemini").associateWith { vault.keys(it).joinToString("\n") }) }
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -257,12 +259,12 @@ private fun IdwApp() {
                 "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
                 "Library" -> LibraryScreen(docs, busy, status, onAdd = { picker.launch(arrayOf("application/pdf")) }, onDelete = { data.removeDocument(it); refresh++ })
                 "Study" -> StudyScreen(question, { question = it }, answer, busy, status, onAsk = {
-                    if (apiKey.isBlank()) { page = "Settings"; status = "Add your Groq API key first." }
+                    if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                     else scope.launch {
                         busy = true; answer = ""; status = "Thinking…"
                         try {
                             val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
-                            answer = askGroq(apiKey, question, contextText); status = ""
+                            answer = askWithFallback(aiProvider, vault.keys(aiProvider), question, contextText); status = ""
                         } catch (e: Exception) { status = e.message ?: "AI request failed." }
                         busy = false
                     }
@@ -276,7 +278,7 @@ private fun IdwApp() {
                             busy = true; status = "Creating flashcards from your PDFs…"
                             try {
                                 val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
-                                val raw = askGroq(apiKey, "Create 8 useful school revision flashcards from the study material. Return ONLY a valid JSON array. Each item must have exactly two string fields: question and answer. Do not include markdown fences or any text outside the JSON array.", contextText)
+                                val raw = askWithFallback(aiProvider, vault.keys(aiProvider), "Create 8 useful school revision flashcards from the study material. Avoid repeating existing flashcards. Return ONLY a valid JSON array. Each item must have exactly two string fields: question and answer. Do not include markdown fences or any text outside the JSON array.", contextText)
                                 val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
                                 if (start < 0 || end <= start) throw Exception("The AI returned an invalid flashcard format. Try again.")
                                 val generated = JSONArray(raw.substring(start, end + 1))
@@ -307,7 +309,7 @@ private fun IdwApp() {
                             busy = true; status = "Generating your practice quiz…"
                             try {
                                 val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
-                                val raw = askGroq(apiKey, "Create 10 school-level multiple-choice questions from the study material. Return ONLY a valid JSON array. Each item must contain question (string), choices (array of exactly four short strings), answer (one exact choice string), and explanation (string). Exactly one correct answer per question. No markdown or text outside JSON.", contextText)
+                                val raw = askWithFallback(aiProvider, vault.keys(aiProvider), "Create 10 school-level multiple-choice questions from the study material. Do not repeat these existing questions: " + (0 until data.entries("quizzes").length()).mapNotNull { data.entries("quizzes").optJSONObject(it)?.optString("title") }.joinToString(" | ").take(5000) + ". Return ONLY a valid JSON array. Each item must contain question (string), choices (array of exactly four short strings), answer (one exact choice string), and explanation (string). Exactly one correct answer per question. No markdown or text outside JSON.", contextText)
                                 val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
                                 if (start < 0 || end <= start) throw Exception("The AI returned an invalid quiz format. Try again.")
                                 val generated = JSONArray(raw.substring(start, end + 1))
@@ -345,9 +347,10 @@ private fun IdwApp() {
                     onDelete = { data.removeEntry("tasks", it); refresh++ }
                 )
                 else -> SettingsScreen(
-                    apiKey,
-                    { apiKey = it; vault.save(it); status = "API key saved securely on this device." },
-                    status,
+                    provider = aiProvider,
+                    keys = apiKeys,
+                    onSave = { provider, value -> aiProvider = provider; apiKeys = apiKeys + (provider to value); vault.save(provider, value); status = "Provider keys saved securely on this device." },
+                    status = status,
                     onExport = { exportPicker.launch("idw2fail-backup.json") },
                     onImport = { backupPicker.launch(arrayOf("application/json", "text/json")) }
                 )
