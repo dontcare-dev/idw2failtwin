@@ -311,7 +311,7 @@ private fun IdwApp() {
                             val raw = askWithFallback(aiProvider, vault.keys(aiProvider), question, contextText)
                             val parsed = extractTutorResponse(raw)
                             answer = parsed.first
-                            studyBoard = parsed.second
+                            studyBoard = parsed.second ?: if (question.contains("pendulum", true)) pendulumBoard() else null
                             status = ""
                         } catch (e: Exception) { status = e.message ?: "AI request failed." }
                         busy = false
@@ -766,6 +766,19 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
         QuickRow("AI & privacy settings", "Manage your provider key and data", Icons.Rounded.Tune, onSettings)
     }
 }
+
+private fun pendulumBoard(): JSONObject = JSONObject()
+    .put("title", "Simple pendulum")
+    .put("elements", JSONArray()
+        .put(JSONObject().put("type", "line").put("x1", 180).put("y1", 180).put("x2", 820).put("y2", 180))
+        .put(JSONObject().put("type", "circle").put("cx", 500).put("cy", 180).put("r", 9))
+        .put(JSONObject().put("type", "line").put("x1", 500).put("y1", 188).put("x2", 650).put("y2", 570))
+        .put(JSONObject().put("type", "circle").put("cx", 650).put("cy", 570).put("r", 55))
+        .put(JSONObject().put("type", "text").put("x", 520).put("y", 145).put("value", "Pivot"))
+        .put(JSONObject().put("type", "text").put("x", 675).put("y", 360).put("value", "String"))
+        .put(JSONObject().put("type", "text").put("x", 725).put("y", 590).put("value", "Bob"))
+        .put(JSONObject().put("type", "line").put("x1", 650).put("y1", 650).put("x2", 650).put("y2", 820))
+        .put(JSONObject().put("type", "text").put("x", 670).put("y", 790).put("value", "Gravity")))
 
 private fun extractTutorResponse(raw: String): Pair<String, JSONObject?> {
     val start = raw.indexOf('{')
