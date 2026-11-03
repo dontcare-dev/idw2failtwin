@@ -275,7 +275,7 @@ private fun IdwApp() {
             try {
                 val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
                     ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: "Study material.pdf"
-                val extracted = withContext(Dispatchers.IO) {
+                val extractedData = withContext(Dispatchers.IO) {
                     val temp = java.io.File.createTempFile("idw-pdf-", ".pdf", context.cacheDir)
                     try {
                         val input = context.contentResolver.openInputStream(uri) ?: throw Exception("The selected file could not be opened.")
@@ -310,9 +310,9 @@ private fun IdwApp() {
                         }
                     } finally { temp.delete() }
                 }
-                val extracted = extracted.first
+                val extracted = extractedData.first
                 if (extracted.isBlank()) throw Exception("No selectable text was found. This may be a scanned PDF.")
-                data.addDocument(name, extracted, extracted.second); refresh++
+                data.addDocument(name, extracted, extractedData.second); refresh++
                 status = "PDF added · ${extracted.length} characters extracted"
             } catch (e: Exception) { status = "Couldn't read that PDF: ${e.message ?: "Unsupported or damaged PDF."}" }
             finally { busy = false }
