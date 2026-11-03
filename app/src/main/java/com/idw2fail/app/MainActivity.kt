@@ -243,7 +243,7 @@ private fun IdwApp() {
                     var page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create())
                     var canvas = page.canvas
                     var y = 52f
-                    canvas.drawText("SDS-IDW2FAILTWIN", 40f, y, titlePaint); y += 30f
+                    canvas.drawText("SDS Study", 40f, y, titlePaint); y += 30f
                     canvas.drawText("FULL-CHAPTER MOCK EXAM · 3 HOURS", 40f, y, paint); y += 34f
                     canvas.drawText("Name: ____________________    Date: ______________", 40f, y, paint); y += 34f
                     val saved = data.entries("exams")
@@ -356,7 +356,7 @@ private fun IdwApp() {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(Brush.linearGradient(listOf(Violet, Coral, Mint))), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.School, null, tint = Ink, modifier = Modifier.size(21.dp)) }; Spacer(Modifier.width(10.dp)); Text("SDS-IDW2FAILTWIN", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp) }
+                Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(Brush.linearGradient(listOf(Violet, Coral, Mint))), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.School, null, tint = Ink, modifier = Modifier.size(21.dp)) }; Spacer(Modifier.width(10.dp)); Text("SDS Study", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp) }
             }
             Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
             when (currentPage) {
