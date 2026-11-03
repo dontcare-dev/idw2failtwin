@@ -361,7 +361,7 @@ private fun IdwApp() {
             Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
             when (currentPage) {
                 "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
-                "Search" -> GlobalSearchScreen(docs, data.entries("quizzes"), data.entries("flashcards"), data.entries("syllabus")) { page = it }
+                "Search" -> GlobalSearchScreen(docs, data.entries("quizzes"), data.entries("flashcards"), data.entries("syllabus"), data.entries("formulas")) { page = it }
                 "Tools" -> LearningHubScreen(
                     documents = docs, result = hubResult, board = hubBoard, status = status, busy = busy, offline = offlineMode,
                     onOfflineChange = { offlineMode = it; context.getSharedPreferences("app_settings", 0).edit().putBoolean("offline_mode", it).apply(); status = if (it) "Offline mode enabled. Saved study material remains available." else "Offline mode disabled." },
