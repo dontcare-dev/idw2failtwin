@@ -44,6 +44,7 @@ fun GlobalSearchScreen(
     quizzes: JSONArray,
     flashcards: JSONArray,
     syllabus: JSONArray,
+    formulas: JSONArray,
     onNavigate: (String) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -69,6 +70,11 @@ fun GlobalSearchScreen(
             val item = syllabus.optJSONObject(i) ?: continue
             if (q.isNotBlank() && item.optString("title").contains(q, true))
                 found.add(Triple("Syllabus topic", item.optString("title"), "Syllabus"))
+        }
+        for (i in 0 until formulas.length()) {
+            val item = formulas.optJSONObject(i) ?: continue
+            if (q.isNotBlank() && (item.optString("title").contains(q, true) || item.optString("body").contains(q, true)))
+                found.add(Triple("Formula sheet", item.optString("title"), "Tools"))
         }
         found.take(80)
     }
