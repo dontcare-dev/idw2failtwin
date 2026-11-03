@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.graphics.pdf.PdfDocument
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.speech.tts.TextToSpeech
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -363,7 +364,7 @@ private fun IdwApp() {
                     onSaveFormula = { title, body -> data.addEntry("formulas", title, body); refresh++; status = "Formula sheet saved on this device." },
                     onGenerate = { mode, prompt, documentId ->
                         if (offlineMode) status = "Turn off offline mode to use AI."
-                        else if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
+                        else if (offlineMode) { status = "Offline mode is on. Turn it off to use AI." } else if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                         else scope.launch {
                             val selected = (0 until docs.length()).mapNotNull { docs.optJSONObject(it) }.firstOrNull { it.optString("id") == documentId }
                             if (selected == null) { status = "Choose a study PDF first." }
@@ -401,7 +402,7 @@ private fun IdwApp() {
                 "Readiness" -> ExamReadinessScreen(data.entries("syllabus"), data.entries("quizzes"), data.entries("flashcards"), docs)
                 "Library" -> LibraryScreen(docs, busy, status, onAdd = { picker.launch(arrayOf("application/pdf")) }, onDelete = { data.removeDocument(it); refresh++ }, onRename = { id, name -> data.renameDocument(id, name); refresh++ })
                 "Study" -> StudyScreen(question, { question = it }, answer, studyBoard, busy, status, onAsk = {
-                    if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
+                    if (offlineMode) { status = "Offline mode is on. Turn it off to use AI." } else if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                     else scope.launch {
                         busy = true; answer = ""; studyBoard = null; status = "Mochi is thinking…"
                         try {
@@ -418,7 +419,7 @@ private fun IdwApp() {
                 "Practice" -> PracticeScreen(
                     cards = data.entries("flashcards"), refresh = refresh, generating = busy, status = status,
                     onGenerate = {
-                        if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
+                        if (offlineMode) { status = "Offline mode is on. Turn it off to use AI." } else if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                         else if (docs.length() == 0) status = "Import a PDF first so the AI has material to study."
                         else scope.launch {
                             busy = true; status = "Creating flashcards from your PDFs…"
@@ -455,7 +456,7 @@ private fun IdwApp() {
                 "Quizzes" -> QuizScreen(
                     quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
                     onGenerate = {
-                        if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
+                        if (offlineMode) { status = "Offline mode is on. Turn it off to use AI." } else if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                         else if (docs.length() == 0) status = "Import a PDF first so the AI has material to study."
                         else scope.launch {
                             busy = true; status = "Generating your practice quiz…"
@@ -507,7 +508,7 @@ private fun IdwApp() {
                     onResult = { id, correct -> data.setQuizResult(id, correct); refresh++ }
                 )
                 "Exams" -> ExamScreen(exam = data.entries("exams"), generating = busy, status = status, onMake = {
-                    if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
+                    if (offlineMode) { status = "Offline mode is on. Turn it off to use AI." } else if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                     else if (docs.length() == 0) status = "Import a study PDF first."
                     else scope.launch {
                         busy = true; status = "Generating five sections from your study material…"
@@ -666,6 +667,9 @@ private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd:
 
 @Composable
 private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: String, board: JSONObject?, busy: Boolean, status: String, onAsk: () -> Unit) {
+    val context = LocalContext.current
+    val speech = remember(context) { TextToSpeech(context) { } }
+    DisposableEffect(speech) { onDispose { speech.stop(); speech.shutdown() } }
     LazyColumn(
         modifier = Modifier.fillMaxSize().imePadding(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
@@ -701,8 +705,12 @@ private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: 
                     Icon(Icons.Rounded.Pets, null, tint = Violet, modifier = Modifier.size(23.dp))
                     Text("Mochi · Study cat", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
                 }
-                Text(answer, fontSize = 14.sp, lineHeight = 22.sp,
-                    modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(16.dp))
+                Column(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(14.dp)) {
+                    Text(answer, fontSize = 14.sp, lineHeight = 22.sp)
+                    TextButton(onClick = { speech.speak(answer, TextToSpeech.QUEUE_FLUSH, null, "mochi-answer") }, modifier = Modifier.align(Alignment.End)) {
+                        Icon(Icons.Rounded.VolumeUp, null); Spacer(Modifier.width(6.dp)); Text("Read aloud")
+                    }
+                }
             }
         }
         if (board != null) item { StudyWhiteboard(board) }
