@@ -4,6 +4,10 @@ import android.os.Bundle
 import android.graphics.pdf.PdfDocument
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.speech.RecognizerIntent
 import android.speech.tts.TextToSpeech
 import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
@@ -670,6 +674,17 @@ private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: 
     val context = LocalContext.current
     val speech = remember(context) { TextToSpeech(context) { } }
     DisposableEffect(speech) { onDispose { speech.stop(); speech.shutdown() } }
+    val speechResult = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let(onQuestion)
+        }
+    }
+    val speechPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            runCatching { speechResult.launch(intent) }
+        }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().imePadding(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
@@ -684,6 +699,16 @@ private fun StudyScreen(question: String, onQuestion: (String) -> Unit, answer: 
                 minLines = 3, maxLines = 6,
                 shape = RoundedCornerShape(16.dp), colors = fieldColors()
             )
+        }
+        item {
+            OutlinedButton(onClick = {
+                if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    runCatching { speechResult.launch(intent) }
+                } else speechPermission.launch(Manifest.permission.RECORD_AUDIO)
+            }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Rounded.Mic, null); Spacer(Modifier.width(7.dp)); Text("Speak your question")
+            }
         }
         item {
             Button(
