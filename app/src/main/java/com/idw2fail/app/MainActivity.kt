@@ -217,6 +217,7 @@ private fun IdwApp() {
     var hubResult by remember { mutableStateOf("") }
     var hubBoard by remember { mutableStateOf<JSONObject?>(null) }
     var offlineMode by remember { mutableStateOf(context.getSharedPreferences("app_settings", 0).getBoolean("offline_mode", false)) }
+    var pendingExamPdf by remember { mutableStateOf<JSONObject?>(null) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -233,39 +234,14 @@ private fun IdwApp() {
         }
     }
     val examPdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
-        if (uri != null) scope.launch {
+        val paperToSave = pendingExamPdf
+        pendingExamPdf = null
+        if (uri != null && paperToSave != null) scope.launch {
             try {
-                withContext(Dispatchers.IO) {
-                    val pdf = PdfDocument()
-                    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f; color = android.graphics.Color.BLACK }
-                    val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 20f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = android.graphics.Color.BLACK }
-                    var pageNo = 1
-                    var page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create())
-                    var canvas = page.canvas
-                    var y = 52f
-                    canvas.drawText("SDS Study", 40f, y, titlePaint); y += 30f
-                    canvas.drawText("FULL-CHAPTER MOCK EXAM · 3 HOURS", 40f, y, paint); y += 34f
-                    canvas.drawText("Name: ____________________    Date: ______________", 40f, y, paint); y += 34f
-                    val saved = data.entries("exams")
-                    val paper = if (saved.length() > 0) runCatching { JSONObject(saved.optJSONObject(0)?.optString("body") ?: "{}") }.getOrElse { JSONObject() } else JSONObject()
-                    val qs = paper.optJSONArray("questions") ?: JSONArray()
-                    for (i in 0 until qs.length()) {
-                        val q = qs.optJSONObject(i) ?: continue
-                        val lines = listOf("${i + 1}. [${q.optString("type")}] ${q.optString("question")}") +
-                            (0 until (q.optJSONArray("choices")?.length() ?: 0)).map { n -> "   ${'A' + n}. ${q.optJSONArray("choices")?.optString(n)}" } +
-                            listOf("   Marks: ${q.optInt("points", 1)}", "")
-                        for (line in lines) {
-                            if (y > 790f) { pdf.finishPage(page); pageNo++; page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNo).create()); canvas = page.canvas; y = 50f }
-                            canvas.drawText(line.take(90), 40f, y, paint); y += 20f
-                        }
-                    }
-                    pdf.finishPage(page)
-                    val output = context.contentResolver.openOutputStream(uri) ?: throw Exception("Could not create exam PDF.")
-                    output.use { pdf.writeTo(it) }; pdf.close()
-                }
-                status = "Exam PDF exported."
+                withContext(Dispatchers.IO) { writeExamPdf(context, uri, paperToSave) }
+                status = "Your exam PDF is ready and saved."
             } catch (e: Exception) { status = e.message ?: "Exam PDF export failed." }
-        }
+        } else if (uri == null) status = "PDF save cancelled. Use Download PDF to save it later."
     }
     val backupPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
@@ -535,11 +511,18 @@ private fun IdwApp() {
                             val previous = data.entries("exams")
                             for (i in 0 until previous.length()) data.removeEntry("exams", previous.optJSONObject(i)?.optString("id") ?: "")
                             data.addEntry("exams", "100-question exam", paper.toString()); refresh++
-                            status = "100 questions generated across five sections."
+                            pendingExamPdf = paper
+                            status = "Exam ready. Choose where to save your PDF."
+                            examPdfPicker.launch("SDS-Study-Exam.pdf")
                         } catch (e: Exception) { status = e.message ?: "Exam generation failed." }
                         busy = false
                     }
-                }, onExport = { examPdfPicker.launch("SDS-100-question-exam.pdf") })
+                }, onExport = {
+                    val saved = data.entries("exams")
+                    val savedPaper = if (saved.length() > 0) runCatching { JSONObject(saved.optJSONObject(0)?.optString("body") ?: "{}") }.getOrElse { JSONObject() } else null
+                    if (savedPaper == null || savedPaper.optJSONArray("questions") == null) status = "Generate an exam paper first."
+                    else { pendingExamPdf = savedPaper; examPdfPicker.launch("SDS-Study-Exam.pdf") }
+                })
                 "Progress" -> ProgressScreen(
                     documentCount = docs.length(),
                     cardCount = data.entries("flashcards").length(),
@@ -570,6 +553,77 @@ private fun IdwApp() {
             }
         }
     }
+}
+
+
+private fun writeExamPdf(context: android.content.Context, uri: android.net.Uri, paper: JSONObject) {
+    val pdf = PdfDocument()
+    val width = 595
+    val height = 842
+    val margin = 42f
+    val body = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(35, 39, 45); textSize = 10.5f }
+    val bold = Paint(body).apply { textSize = 11f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+    val title = Paint(bold).apply { textSize = 22f }
+    val muted = Paint(body).apply { color = android.graphics.Color.rgb(105, 113, 125); textSize = 9f }
+    var pageNumber = 0
+    lateinit var page: PdfDocument.Page
+    lateinit var canvas: android.graphics.Canvas
+    var y = 0f
+    fun newPage() {
+        if (pageNumber > 0) pdf.finishPage(page)
+        pageNumber++
+        page = pdf.startPage(PdfDocument.PageInfo.Builder(width, height, pageNumber).create())
+        canvas = page.canvas
+        y = 48f
+        canvas.drawText("SDS Study", margin, y, bold)
+        canvas.drawText("MOCK EXAM", width - margin - 75f, y, muted)
+        y += 22f
+        canvas.drawLine(margin, y, width - margin, y, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.LTGRAY })
+        y += 24f
+    }
+    fun ensureSpace(amount: Float) { if (y + amount > height - 52f) newPage() }
+    fun drawWrapped(value: String, paint: Paint, indent: Float = 0f, lineGap: Float = 15f) {
+        val maxWidth = width - margin * 2 - indent
+        val words = value.split(Regex("\\s+"))
+        var line = ""
+        for (word in words) {
+            val candidate = if (line.isEmpty()) word else "$line $word"
+            if (line.isNotEmpty() && paint.measureText(candidate) > maxWidth) {
+                ensureSpace(lineGap); canvas.drawText(line, margin + indent, y, paint); y += lineGap; line = word
+            } else line = candidate
+        }
+        if (line.isNotEmpty()) { ensureSpace(lineGap); canvas.drawText(line, margin + indent, y, paint); y += lineGap }
+    }
+    newPage()
+    canvas.drawText("Examination paper", margin, y, title); y += 28f
+    canvas.drawText("Time allowed: 3 hours", margin, y, body)
+    canvas.drawText("Name: __________________________", 300f, y, body); y += 22f
+    canvas.drawText("Date: ___________________________", 300f, y, body); y += 18f
+    drawWrapped("Instructions: Answer all questions. Show your working where required.", muted)
+    y += 15f
+    val questions = paper.optJSONArray("questions") ?: JSONArray()
+    var previousType = ""
+    for (i in 0 until questions.length()) {
+        val q = questions.optJSONObject(i) ?: continue
+        val type = q.optString("type", "Questions")
+        if (type != previousType) { previousType = type; ensureSpace(34f); y += 7f; canvas.drawText(type.uppercase(), margin, y, bold); y += 18f }
+        drawWrapped("${i + 1}. ${q.optString("question")}", bold, lineGap = 16f)
+        val choices = q.optJSONArray("choices")
+        if (choices != null) for (j in 0 until choices.length()) drawWrapped("${'A' + j}. ${choices.optString(j)}", body, indent = 16f, lineGap = 14f)
+        else repeat(if (type.contains("Long", true)) 5 else if (type.contains("Question answer", true)) 3 else 2) {
+            ensureSpace(19f)
+            canvas.drawLine(margin + 12f, y + 7f, width - margin, y + 7f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.LTGRAY; strokeWidth = .7f })
+            y += 19f
+        }
+        drawWrapped("Marks: ${q.optInt("points", 1).coerceAtLeast(1)}", muted, lineGap = 13f)
+        y += 8f
+    }
+    ensureSpace(25f); y += 8f; canvas.drawText("End of paper", margin, y, bold)
+    pdf.finishPage(page)
+    try {
+        val output = context.contentResolver.openOutputStream(uri) ?: throw Exception("Could not create exam PDF.")
+        output.use { pdf.writeTo(it) }
+    } finally { pdf.close() }
 }
 
 @Composable
@@ -1170,52 +1224,24 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
 private fun ExamScreen(exam: JSONArray, generating: Boolean, status: String, onMake: () -> Unit, onExport: () -> Unit) {
     val paper = if (exam.length() > 0) runCatching { JSONObject(exam.optJSONObject(0)?.optString("body") ?: "{}") }.getOrElse { JSONObject() } else JSONObject()
     val questions = paper.optJSONArray("questions") ?: JSONArray()
-    var answers by remember { mutableStateOf(mapOf<Int, String>()) }
-    var started by remember { mutableStateOf(false) }
-    var secondsLeft by remember { mutableIntStateOf(10800) }
-    var submitted by remember { mutableStateOf(false) }
-    LaunchedEffect(started, submitted) {
-        while (started && !submitted && secondsLeft > 0) { delay(1000); secondsLeft-- }
-        if (secondsLeft == 0) { started = false; submitted = true }
-    }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp)) {
-        Text("Exams", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
-        Text("100-question exam paper", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-        Button(onClick = onMake, enabled = !generating, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(50.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) {
-            if (generating) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Icon(Icons.Rounded.Description, null)
-            Spacer(Modifier.width(8.dp)); Text(if (generating) "Creating 100 questions…" else "Make exam paper")
+    val sections = linkedMapOf<String, Int>()
+    for (i in 0 until questions.length()) { val type = questions.optJSONObject(i)?.optString("type", "Other") ?: "Other"; sections[type] = (sections[type] ?: 0) + 1 }
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp)) {
+        Text("Exam paper", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Text("Generate a paper from your imported study material and save it as a PDF.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp))
+        Button(onClick = onMake, enabled = !generating, modifier = Modifier.fillMaxWidth().padding(top = 22.dp).height(54.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) {
+            if (generating) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp) else Icon(Icons.Rounded.AutoAwesome, null)
+            Spacer(Modifier.width(9.dp)); Text(if (generating) "Building your exam…" else if (questions.length() > 0) "Generate new exam PDF" else "Generate exam PDF")
         }
-        if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
-        if (questions.length() == 0) EmptyState("No exam paper yet", "Import a PDF, then make an exam paper.", Icons.Rounded.Description)
-        else {
-            Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${questions.length()} questions", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f)); Text("3 hours", color = Violet, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        if (questions.length() > 0) {
+            Column(Modifier.fillMaxWidth().padding(top = 18.dp).background(Panel, RoundedCornerShape(18.dp)).padding(17.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Rounded.PictureAsPdf, null, tint = Mint, modifier = Modifier.size(24.dp)); Spacer(Modifier.width(9.dp)); Text("Your latest paper", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+                Text("${questions.length()} questions · 3 hours", fontSize = 13.sp, color = Muted, modifier = Modifier.padding(top = 8.dp))
+                sections.forEach { (name, count) -> Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) { Text(name, Modifier.weight(1f), fontSize = 12.sp); Text("$count questions", color = Muted, fontSize = 11.sp) } }
+                Button(onClick = onExport, modifier = Modifier.fillMaxWidth().padding(top = 16.dp).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Mint, contentColor = Color.White)) { Icon(Icons.Rounded.Download, null); Spacer(Modifier.width(8.dp)); Text("Download PDF") }
             }
-            Text("MCQ · True/False · Short · Written · Long answer", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
-            Button(onClick = { if (started) { started = false } else { started = true; submitted = false; secondsLeft = 10800 } }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color.White)) { Text(if (started) "Pause exam" else "Start exam") }
-            if (started) Text("Time left  %02d:%02d:%02d".format(secondsLeft / 3600, (secondsLeft % 3600) / 60, secondsLeft % 60), color = Coral, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
-            if (submitted) Text("Exam submitted.", color = Mint, modifier = Modifier.padding(top = 8.dp))
-            var lastSection = ""
-            for (i in 0 until questions.length()) {
-                val q = questions.optJSONObject(i) ?: continue
-                val type = q.optString("type", "Short answer")
-                if (type != lastSection) { lastSection = type; Text(type, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Violet, modifier = Modifier.padding(top = 22.dp, bottom = 8.dp)) }
-                Column(Modifier.fillMaxWidth().padding(bottom = 10.dp).background(Panel, RoundedCornerShape(14.dp)).border(1.dp, Color(0xFF17191D).copy(alpha = .08f), RoundedCornerShape(14.dp)).padding(13.dp)) {
-                    Text("${i + 1}. ${q.optString("question")}", fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = 19.sp)
-                    val choices = q.optJSONArray("choices")
-                    if (choices != null) for (j in 0 until choices.length()) {
-                        val choice = choices.optString(j)
-                        Row(Modifier.fillMaxWidth().clickable(enabled = !submitted) { answers = answers + (i to choice) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = answers[i] == choice, onClick = { answers = answers + (i to choice) }, enabled = !submitted)
-                            Text(choice, fontSize = 12.sp)
-                        }
-                    } else OutlinedTextField(value = answers[i] ?: "", onValueChange = { answers = answers + (i to it) }, enabled = !submitted, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), minLines = if (type == "Long answer") 4 else 2, colors = fieldColors())
-                }
-            }
-            Button(onClick = { submitted = true; started = false }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) { Text("Submit answers") }
-            OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Icon(Icons.Rounded.PictureAsPdf, null); Spacer(Modifier.width(8.dp)); Text("Export question paper PDF") }
-        }
+        } else EmptyState("No exam paper yet", "Your generated paper will be formatted as a printable PDF.", Icons.Rounded.Description)
+        if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
     }
 }
 
