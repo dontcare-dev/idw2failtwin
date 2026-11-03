@@ -1,4 +1,4 @@
-# SDS-IDW2FAILTWIN
+# SDS Study
 
 Native Android study app built with Kotlin and Jetpack Compose.
 
