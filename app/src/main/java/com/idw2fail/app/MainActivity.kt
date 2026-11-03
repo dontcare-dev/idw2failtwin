@@ -678,7 +678,7 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
         item { Text("Flashcards", fontSize = 28.sp, fontWeight = FontWeight.SemiBold) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !savedOnly, onClick = { savedOnly = false; index = 0; revealed = false }, label = { Text("All cards") })
+                FilterChip(selected = !savedOnly && !knownOnly, onClick = { savedOnly = false; knownOnly = false; index = 0; revealed = false }, label = { Text("All cards") })
                 FilterChip(selected = savedOnly, onClick = { savedOnly = true; knownOnly = false; index = 0; revealed = false }, label = { Text("Saved") }, leadingIcon = { Icon(Icons.Rounded.Bookmark, null) })
                 FilterChip(selected = knownOnly, onClick = { knownOnly = !knownOnly; savedOnly = false; index = 0; revealed = false }, label = { Text("Still learning") })
             }
