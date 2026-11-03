@@ -423,7 +423,8 @@ private fun IdwApp() {
                         }
                     },
                     onDelete = { data.removeEntry("quizzes", it); refresh++ },
-                    onSave = { id, saved -> data.setSaved("quizzes", id, saved); refresh++ }
+                    onSave = { id, saved -> data.setSaved("quizzes", id, saved); refresh++ },
+                    onWrong = { id, wrong -> data.setFlag("quizzes", id, "wrong", wrong); refresh++ }
                 )
                 "Exams" -> ExamScreen(exam = data.entries("exams"), generating = busy, status = status, onMake = {
                     if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
@@ -941,19 +942,21 @@ private fun readMcqAnswer(detail: JSONObject, choices: List<String>): String {
 }
 
 @Composable
-private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit) {
+private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit, onWrong: (String, Boolean) -> Unit) {
     var index by remember { mutableIntStateOf(0) }
     var selectedAnswer by remember { mutableStateOf("") }
     var score by remember { mutableIntStateOf(0) }
     var savedOnly by remember { mutableStateOf(false) }
+    var wrongOnly by remember { mutableStateOf(false) }
     var celebration by remember { mutableIntStateOf(0) }
     val allQuestions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
-    val questions = allQuestions.filter { !savedOnly || it.optBoolean("saved") }
+    val questions = allQuestions.filter { (!savedOnly || it.optBoolean("saved")) && (!wrongOnly || it.optBoolean("wrong")) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
         Text("MCQ practice", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
-            FilterChip(selected = !savedOnly, onClick = { savedOnly = false; index = 0; selectedAnswer = "" }, label = { Text("All questions") })
-            FilterChip(selected = savedOnly, onClick = { savedOnly = true; index = 0; selectedAnswer = "" }, label = { Text("Saved") }, leadingIcon = { Icon(Icons.Rounded.Bookmark, null) })
+            FilterChip(selected = !savedOnly && !wrongOnly, onClick = { savedOnly = false; wrongOnly = false; index = 0; selectedAnswer = "" }, label = { Text("All") })
+            FilterChip(selected = savedOnly, onClick = { savedOnly = true; wrongOnly = false; index = 0; selectedAnswer = "" }, label = { Text("Saved") }, leadingIcon = { Icon(Icons.Rounded.Bookmark, null) })
+            FilterChip(selected = wrongOnly, onClick = { wrongOnly = !wrongOnly; savedOnly = false; index = 0; selectedAnswer = "" }, label = { Text("Retry mistakes") }, leadingIcon = { Icon(Icons.Rounded.Replay, null) })
         }
         Button(onClick = onGenerate, enabled = !generating, modifier = Modifier.fillMaxWidth().height(49.dp), shape = RoundedCornerShape(15.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
             if (generating) CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp, color = Ink) else Icon(Icons.Rounded.AutoAwesome, null)
@@ -961,7 +964,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
         }
         if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
         if (questions.isEmpty()) {
-            EmptyState("No questions yet", "Import a PDF and generate MCQs.", Icons.Rounded.Quiz)
+            EmptyState(if (wrongOnly) "No mistakes to retry" else "No questions yet", if (wrongOnly) "Questions you answer incorrectly will appear here." else "Import a PDF and generate MCQs.", Icons.Rounded.Quiz)
         } else {
             val question = questions[index.coerceIn(0, questions.lastIndex)]
             val detail = runCatching { JSONObject(question.optString("body")) }.getOrElse { JSONObject() }
@@ -992,6 +995,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                             .border(1.dp, if (chosen && isCorrect) Mint else if (chosen) Coral else Color(0xFF17191D).copy(alpha = .14f), RoundedCornerShape(14.dp))
                             .clickable(enabled = selectedAnswer.isBlank()) {
                                 selectedAnswer = option
+                                onWrong(question.optString("id"), !isCorrect)
                                 if (isCorrect) { score++; celebration++ }
                             }
                             .padding(horizontal = 12.dp, vertical = 12.dp),
