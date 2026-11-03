@@ -176,7 +176,7 @@ fun LearningHubScreen(
                 OutlinedTextField(calculator, { calculator = it }, Modifier.fillMaxWidth(), label = { Text("Arithmetic expression") }, placeholder = { Text("(12 + 8) * 3") }, singleLine = true)
                 Text("For safety, the calculator accepts only numbers and + − × ÷ parentheses and decimal points.", color = HubMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
                 val calc = safeCalculate(calculator)
-                Text(calc ?: "Enter a valid expression", color = if (calc == null) HubMuted else HubMint, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+                Text(calc?.toString() ?: "Enter a valid expression", color = if (calc == null) HubMuted else HubMint, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
                 Text("Unit converter", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 22.dp))
                 OutlinedTextField(converterValue, { converterValue = it }, Modifier.fillMaxWidth(), label = { Text("Value") }, singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 7.dp)) {
