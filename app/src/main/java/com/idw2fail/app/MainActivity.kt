@@ -380,10 +380,10 @@ private fun IdwApp() {
                                         if (pages.length() > 0) {
                                             for (i in 0 until pages.length()) {
                                                 val p = pages.optJSONObject(i) ?: continue
-                                                append("[Source: ${selected.optString("name")}, page ${p.optInt("number", i + 1)}]\\n")
+                                                append("[Source: ${selected.optString("name")}, page ${p.optInt("number", i + 1)}]\n")
                                                 append(p.optString("text")).append("\n")
                                             }
-                                        } else append("[Source: ${selected.optString("name")}; page index unavailable for this older import]\\n").append(selected.optString("text"))
+                                        } else append("[Source: ${selected.optString("name")}; page index unavailable for this older import]\n").append(selected.optString("text"))
                                     }.take(14000)
                                     val task = when (mode) {
                                         "Ask PDF" -> "Answer this question using ONLY the supplied PDF text: $prompt. Cite every factual claim with [filename, p. N] only when the page marker is present. Never invent page numbers. If the PDF does not contain the answer, say so."
@@ -1296,7 +1296,7 @@ private suspend fun askWithFallback(provider: String, keys: List<String>, prompt
 }
 
 private suspend fun askProvider(provider: String, apiKey: String, prompt: String, studyContext: String): String = withContext(Dispatchers.IO) {
-    val system = "You are Mochi, a friendly cat study tutor for school students in grades 1–12. Explain clearly and accurately in simple language. When a small diagram would genuinely help, include a lightweight whiteboard drawing made from vector elements, not an image. Return only a JSON object with answer (string) and board (object or null). A board object has title and elements. Each element is either {type:'line',x1:0,y1:0,x2:0,y2:0}, {type:'circle',cx:0,cy:0,r:30}, or {type:'text',x:0,y:0,value:'label'}. Coordinates use a 0 to 1000 canvas. Keep to 12 elements, label important parts, and use board:null when a drawing adds no value. For a pendulum, draw its support, string, bob, and labels. Use this study material when relevant:\\n\\n${studyContext.ifBlank { "No documents have been added yet." }}"
+    val system = "You are Mochi, a friendly cat study tutor for school students in grades 1–12. Explain clearly and accurately in simple language. When a small diagram would genuinely help, include a lightweight whiteboard drawing made from vector elements, not an image. Return only a JSON object with answer (string) and board (object or null). A board object has title and elements. Each element is either {type:'line',x1:0,y1:0,x2:0,y2:0}, {type:'circle',cx:0,cy:0,r:30}, or {type:'text',x:0,y:0,value:'label'}. Coordinates use a 0 to 1000 canvas. Keep to 12 elements, label important parts, and use board:null when a drawing adds no value. For a pendulum, draw its support, string, bob, and labels. Use this study material when relevant:\n\n${studyContext.ifBlank { "No documents have been added yet." }}"
     val endpoint: String
     val body: JSONObject
     when (provider) {
