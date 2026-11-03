@@ -7,11 +7,14 @@ Native Android study app built with Kotlin and Jetpack Compose.
 - Import PDF study material and extract text on the device
 - Ask questions using imported study material
 - Generate flashcards and multiple-choice practice questions
-- Save quiz questions and review answers
+- Save quiz questions, retry previously missed questions, and review explanations
 - Generate a 100-question exam paper in five formats
 - Take an exam with a three-hour timer
 - Export the generated exam paper as a PDF
 - Create and track revision tasks
+- Track syllabus chapters and topics with completion coverage
+- Search imported PDF names and extracted text, and rename PDFs
+- Mark flashcards as known or still learning, shuffle cards, and filter saved cards
 - View local study activity
 - Export and restore a JSON backup
 - Use Groq, OpenAI, or Gemini with API keys stored in encrypted preferences
@@ -39,5 +42,7 @@ When an AI feature is used, the relevant prompt and study text are sent to the s
 - PDF text extraction does not include OCR for scanned pages.
 - DOCX files are not supported.
 - Exam answers are collected in the app but are not automatically graded.
+- Syllabus coverage is entered and maintained manually; the app does not yet parse a syllabus document automatically.
+- Study data remains local; cloud account sync is not included.
 - The generated paper depends on the quality and coverage of the imported material.
 - API provider availability, model access, and usage limits depend on the configured account.
