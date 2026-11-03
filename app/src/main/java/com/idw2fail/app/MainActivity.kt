@@ -312,7 +312,7 @@ private fun IdwApp() {
                                 stripper.writeText(pdf, pageWriter)
                                 val pageText = pageWriter.toString()
                                 pages.put(JSONObject().put("number", pageNumber).put("text", pageText))
-                                if (fullText.length < 80000) fullText.append("\\n[Page $pageNumber]\\n").append(pageText.take(80000 - fullText.length))
+                                if (fullText.length < 80000) fullText.append("\n[Page $pageNumber]\n").append(pageText.take(80000 - fullText.length))
                             }
                             Pair(fullText.toString(), pages)
                         }
@@ -381,7 +381,7 @@ private fun IdwApp() {
                                             for (i in 0 until pages.length()) {
                                                 val p = pages.optJSONObject(i) ?: continue
                                                 append("[Source: ${selected.optString("name")}, page ${p.optInt("number", i + 1)}]\\n")
-                                                append(p.optString("text")).append("\\n")
+                                                append(p.optString("text")).append("\n")
                                             }
                                         } else append("[Source: ${selected.optString("name")}; page index unavailable for this older import]\\n").append(selected.optString("text"))
                                     }.take(14000)
