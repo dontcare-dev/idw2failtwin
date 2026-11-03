@@ -105,10 +105,31 @@ private class LocalData(context: android.content.Context) {
         write(restored)
     }
     fun documents(): JSONArray = read().optJSONArray("documents") ?: JSONArray()
-    fun addDocument(name: String, text: String) {
+    fun addDocument(name: String, text: String, pages: JSONArray = JSONArray()) {
         val d = read(); val list = d.optJSONArray("documents") ?: JSONArray()
-        list.put(JSONObject().put("id", UUID.randomUUID().toString()).put("name", name).put("text", text).put("createdAt", System.currentTimeMillis()))
+        list.put(JSONObject().put("id", UUID.randomUUID().toString()).put("name", name).put("text", text).put("pages", pages).put("subject", "General").put("createdAt", System.currentTimeMillis()))
         d.put("documents", list); write(d)
+    }
+    fun setDocumentSubject(id: String, subject: String) {
+        val d = read(); val list = d.optJSONArray("documents") ?: JSONArray()
+        for (i in 0 until list.length()) {
+            val item = list.optJSONObject(i)
+            if (item?.optString("id") == id) item.put("subject", subject.trim().ifBlank { "General" })
+        }
+        d.put("documents", list); write(d)
+    }
+    fun setQuizResult(id: String, correct: Boolean) {
+        val d = read(); val list = d.optJSONArray("quizzes") ?: JSONArray()
+        for (i in 0 until list.length()) {
+            val item = list.optJSONObject(i)
+            if (item?.optString("id") == id) {
+                item.put("attempted", true)
+                item.put("lastCorrect", correct)
+                item.put("attemptCount", item.optInt("attemptCount") + 1)
+                if (!correct) item.put("wrong", true)
+            }
+        }
+        d.put("quizzes", list); write(d)
     }
     fun removeDocument(id: String) {
         val d = read(); val old = d.optJSONArray("documents") ?: JSONArray(); val next = JSONArray()
@@ -274,14 +295,24 @@ private fun IdwApp() {
                         PDDocument.load(temp, MemoryUsageSetting.setupTempFileOnly()).use { pdf ->
                             if (pdf.numberOfPages > 60) throw Exception("This PDF has ${pdf.numberOfPages} pages. Please use a file with 60 pages or fewer.")
                             val stripper = PDFTextStripper()
-                            val result = CappedTextWriter(80000)
-                            stripper.writeText(pdf, result)
-                            result.toString()
+                            val pages = JSONArray()
+                            val fullText = StringBuilder()
+                            for (pageNumber in 1..pdf.numberOfPages) {
+                                stripper.startPage = pageNumber
+                                stripper.endPage = pageNumber
+                                val pageWriter = CappedTextWriter(12000)
+                                stripper.writeText(pdf, pageWriter)
+                                val pageText = pageWriter.toString()
+                                pages.put(JSONObject().put("number", pageNumber).put("text", pageText))
+                                if (fullText.length < 80000) fullText.append("\\n[Page $pageNumber]\\n").append(pageText.take(80000 - fullText.length))
+                            }
+                            Pair(fullText.toString(), pages)
                         }
                     } finally { temp.delete() }
                 }
+                val extracted = extracted.first
                 if (extracted.isBlank()) throw Exception("No selectable text was found. This may be a scanned PDF.")
-                data.addDocument(name, extracted); refresh++
+                data.addDocument(name, extracted, extracted.second); refresh++
                 status = "PDF added · ${extracted.length} characters extracted"
             } catch (e: Exception) { status = "Couldn't read that PDF: ${e.message ?: "Unsupported or damaged PDF."}" }
             finally { busy = false }
@@ -424,7 +455,8 @@ private fun IdwApp() {
                     },
                     onDelete = { data.removeEntry("quizzes", it); refresh++ },
                     onSave = { id, saved -> data.setSaved("quizzes", id, saved); refresh++ },
-                    onWrong = { id, wrong -> data.setFlag("quizzes", id, "wrong", wrong); refresh++ }
+                    onWrong = { id, wrong -> data.setFlag("quizzes", id, "wrong", wrong); refresh++ },
+                    onResult = { id, correct -> data.setQuizResult(id, correct); refresh++ }
                 )
                 "Exams" -> ExamScreen(exam = data.entries("exams"), generating = busy, status = status, onMake = {
                     if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
@@ -942,7 +974,7 @@ private fun readMcqAnswer(detail: JSONObject, choices: List<String>): String {
 }
 
 @Composable
-private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit, onWrong: (String, Boolean) -> Unit) {
+private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit, onWrong: (String, Boolean) -> Unit, onResult: (String, Boolean) -> Unit) {
     var index by remember { mutableIntStateOf(0) }
     var selectedAnswer by remember { mutableStateOf("") }
     var score by remember { mutableIntStateOf(0) }
@@ -996,6 +1028,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                             .clickable(enabled = selectedAnswer.isBlank()) {
                                 selectedAnswer = option
                                 onWrong(question.optString("id"), !isCorrect)
+                                onResult(question.optString("id"), isCorrect)
                                 if (isCorrect) { score++; celebration++ }
                             }
                             .padding(horizontal = 12.dp, vertical = 12.dp),
