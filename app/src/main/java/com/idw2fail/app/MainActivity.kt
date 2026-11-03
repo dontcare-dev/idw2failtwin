@@ -208,6 +208,9 @@ private fun IdwApp() {
     var question by remember { mutableStateOf("") }
     var answer by remember { mutableStateOf("") }
     var studyBoard by remember { mutableStateOf<JSONObject?>(null) }
+    var hubResult by remember { mutableStateOf("") }
+    var hubBoard by remember { mutableStateOf<JSONObject?>(null) }
+    var offlineMode by remember { mutableStateOf(context.getSharedPreferences("app_settings", 0).getBoolean("offline_mode", false)) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -352,6 +355,50 @@ private fun IdwApp() {
             Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
             when (currentPage) {
                 "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
+                "Search" -> GlobalSearchScreen(docs, data.entries("quizzes"), data.entries("flashcards"), data.entries("syllabus")) { page = it }
+                "Tools" -> LearningHubScreen(
+                    documents = docs, result = hubResult, board = hubBoard, status = status, busy = busy, offline = offlineMode,
+                    onOfflineChange = { offlineMode = it; context.getSharedPreferences("app_settings", 0).edit().putBoolean("offline_mode", it).apply(); status = if (it) "Offline mode enabled. Saved study material remains available." else "Offline mode disabled." },
+                    onSetSubject = { id, subject -> data.setDocumentSubject(id, subject); refresh++ },
+                    onSaveFormula = { title, body -> data.addEntry("formulas", title, body); refresh++; status = "Formula sheet saved on this device." },
+                    onGenerate = { mode, prompt, documentId ->
+                        if (offlineMode) status = "Turn off offline mode to use AI."
+                        else if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
+                        else scope.launch {
+                            val selected = (0 until docs.length()).mapNotNull { docs.optJSONObject(it) }.firstOrNull { it.optString("id") == documentId }
+                            if (selected == null) { status = "Choose a study PDF first." }
+                            else {
+                                busy = true; status = "Mochi is preparing $mode…"; hubResult = ""; hubBoard = null
+                                try {
+                                    val pages = selected.optJSONArray("pages") ?: JSONArray()
+                                    val source = buildString {
+                                        if (pages.length() > 0) {
+                                            for (i in 0 until pages.length()) {
+                                                val p = pages.optJSONObject(i) ?: continue
+                                                append("[Source: ${selected.optString("name")}, page ${p.optInt("number", i + 1)}]\\n")
+                                                append(p.optString("text")).append("\\n")
+                                            }
+                                        } else append("[Source: ${selected.optString("name")}; page index unavailable for this older import]\\n").append(selected.optString("text"))
+                                    }.take(14000)
+                                    val task = when (mode) {
+                                        "Ask PDF" -> "Answer this question using ONLY the supplied PDF text: $prompt. Cite every factual claim with [filename, p. N] only when the page marker is present. Never invent page numbers. If the PDF does not contain the answer, say so."
+                                        "Mind map" -> "Create a clear mind map for ${prompt.ifBlank { selected.optString("name") }} based on the PDF. Return a concise answer with central idea and branches. Add a whiteboard board with labelled nodes and connecting lines, coordinates 0..1000."
+                                        "Past paper" -> "Analyse this imported past exam paper. Identify subject areas, question types, recurring themes visible in this document, topic distribution where countable, and a practical revision checklist. Do not claim trends across years from one paper. Cite page references when available. $prompt"
+                                        "Diagram practice" -> "Create a school-level diagram practice exercise for ${prompt.ifBlank { "the main relevant topic in this PDF" }}. Explain what the learner should label, provide a simple labelled answer guide, and draw a clear whiteboard diagram using vector lines, circles and text. Cite PDF page references when available."
+                                        else -> "Extract the important formulas from this PDF for ${prompt.ifBlank { "the main topics" }}. For each give formula, define symbols, units, and one short use note. Cite page references when available. Use a clean numbered list."
+                                    }
+                                    val raw = askWithFallback(aiProvider, vault.keys(aiProvider), task, source)
+                                    val parsed = extractTutorResponse(raw)
+                                    hubResult = parsed.first
+                                    hubBoard = parsed.second
+                                    status = if (hubResult.isBlank()) "No usable result was returned. Try again." else "Generated from ${selected.optString("name")}."
+                                } catch (e: Exception) { status = e.message ?: "AI tool failed." }
+                                finally { busy = false }
+                            }
+                        }
+                    }
+                )
+                "Readiness" -> ExamReadinessScreen(data.entries("syllabus"), data.entries("quizzes"), data.entries("flashcards"), docs)
                 "Library" -> LibraryScreen(docs, busy, status, onAdd = { picker.launch(arrayOf("application/pdf")) }, onDelete = { data.removeDocument(it); refresh++ }, onRename = { id, name -> data.renameDocument(id, name); refresh++ })
                 "Study" -> StudyScreen(question, { question = it }, answer, studyBoard, busy, status, onAsk = {
                     if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
@@ -402,7 +449,8 @@ private fun IdwApp() {
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
-                    onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSyllabus = { page = "Syllabus" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onExams = { page = "Exams" }
+                    onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSyllabus = { page = "Syllabus" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onExams = { page = "Exams" },
+                    onTools = { page = "Tools" }, onSearch = { page = "Search" }, onReadiness = { page = "Readiness" }
                 )
                 "Quizzes" -> QuizScreen(
                     quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
@@ -606,7 +654,7 @@ private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd:
                     Icon(Icons.Rounded.PictureAsPdf, null, tint = Accent); Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(doc.optString("name"), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Text("${doc.optString("text").length} characters · searchable", color = Muted, fontSize = 10.sp)
+                        Text("${doc.optString("subject", "General")} · ${doc.optString("text").length} characters", color = Muted, fontSize = 10.sp)
                     }
                     IconButton(onClick = { editingId = doc.optString("id"); editingName = doc.optString("name") }) { Icon(Icons.Rounded.Edit, "Rename PDF", tint = Muted) }
                     IconButton(onClick = { onDelete(doc.optString("id")) }) { Icon(Icons.Rounded.DeleteOutline, "Delete PDF", tint = Muted) }
@@ -874,7 +922,7 @@ private fun SyllabusScreen(topics: JSONArray, onAdd: (String) -> Unit, onToggle:
 }
 
 @Composable
-private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSyllabus: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onExams: () -> Unit) {
+private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSyllabus: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onExams: () -> Unit, onTools: () -> Unit, onSearch: () -> Unit, onReadiness: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
         Text("More", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(16.dp))
@@ -889,6 +937,12 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
         QuickRow("Syllabus tracker", "Track chapters and topics", Icons.Rounded.MenuBook, onSyllabus)
         Spacer(Modifier.height(9.dp))
         QuickRow("Study progress", "See your saved study activity", Icons.Rounded.Insights, onProgress)
+        Spacer(Modifier.height(9.dp))
+        QuickRow("Exam readiness", "Coverage and practice indicators", Icons.Rounded.Assessment) { onReadiness() }
+        Spacer(Modifier.height(9.dp))
+        QuickRow("Learning tools", "Ask PDFs, mind maps, formulas and diagrams", Icons.Rounded.AutoAwesome) { onTools() }
+        Spacer(Modifier.height(9.dp))
+        QuickRow("Global search", "Find anything in your study library", Icons.Rounded.Search) { onSearch() }
         Spacer(Modifier.height(9.dp))
         QuickRow("AI & privacy settings", "Manage your provider key and data", Icons.Rounded.Tune, onSettings)
     }
