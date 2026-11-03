@@ -22,6 +22,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -641,7 +642,7 @@ private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd:
         Text("Library", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), placeholder = { Text("Search PDFs and their text") }, singleLine = true, shape = RoundedCornerShape(13.dp), colors = fieldColors())
-        Row(Modifier.fillMaxWidth().padding(top = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 7.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = subjectFilter == "All subjects", onClick = { subjectFilter = "All subjects" }, label = { Text("All subjects") })
             subjects.forEach { subject -> FilterChip(selected = subjectFilter == subject, onClick = { subjectFilter = subject }, label = { Text(subject) }) }
         }
