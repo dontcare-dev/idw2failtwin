@@ -371,7 +371,7 @@ private fun IdwApp() {
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
-                    onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onExams = { page = "Exams" }
+                    onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSyllabus = { page = "Syllabus" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onExams = { page = "Exams" }
                 )
                 "Quizzes" -> QuizScreen(
                     quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
@@ -464,6 +464,12 @@ private fun IdwApp() {
                     onAdd = { title -> data.addEntry("tasks", title, ""); refresh++ },
                     onToggle = { id, done -> data.setDone("tasks", id, done); refresh++ },
                     onDelete = { data.removeEntry("tasks", it); refresh++ }
+                )
+                "Syllabus" -> SyllabusScreen(
+                    topics = data.entries("syllabus"),
+                    onAdd = { title -> data.addEntry("syllabus", title, ""); refresh++ },
+                    onToggle = { id, done -> data.setDone("syllabus", id, done); refresh++ },
+                    onDelete = { data.removeEntry("syllabus", it); refresh++ }
                 )
                 else -> SettingsScreen(
                     provider = aiProvider,
@@ -798,7 +804,44 @@ private fun PlannerScreen(tasks: JSONArray, onAdd: (String) -> Unit, onToggle: (
 }
 
 @Composable
-private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onExams: () -> Unit) {
+private fun SyllabusScreen(topics: JSONArray, onAdd: (String) -> Unit, onToggle: (String, Boolean) -> Unit, onDelete: (String) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    val items = (0 until topics.length()).mapNotNull { topics.optJSONObject(it) }
+    val completed = items.count { it.optBoolean("done") }
+    val progress = if (items.isEmpty()) 0f else completed.toFloat() / items.size
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp, vertical = 12.dp)) {
+        Text("Syllabus tracker", fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
+        Text("Add chapters or individual topics, then mark each one complete as you study.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp))
+        Column(Modifier.fillMaxWidth().padding(top = 16.dp).background(Panel, RoundedCornerShape(16.dp)).padding(15.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Coverage", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                Spacer(Modifier.weight(1f))
+                Text("$completed / ${items.size}", color = Mint, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            }
+            Box(Modifier.fillMaxWidth().padding(top = 10.dp).height(8.dp).clip(CircleShape).background(Panel2)) {
+                Box(Modifier.fillMaxWidth(progress).fillMaxHeight().clip(CircleShape).background(Mint))
+            }
+            Text("${(progress * 100).toInt()}% completed", color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 7.dp))
+        }
+        OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth().padding(top = 16.dp), placeholder = { Text("Add a chapter or topic") }, singleLine = true, shape = RoundedCornerShape(13.dp), colors = fieldColors())
+        Button(onClick = { onAdd(title.trim()); title = "" }, enabled = title.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(48.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+            Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(7.dp)); Text("Add to syllabus")
+        }
+        if (items.isEmpty()) EmptyState("Syllabus is empty", "Add chapters or topics to start tracking coverage.", Icons.Rounded.MenuBook)
+        else Column(Modifier.padding(top = 17.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items.forEach { topic ->
+                Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(13.dp)).padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = topic.optBoolean("done"), onCheckedChange = { onToggle(topic.optString("id"), it) })
+                    Text(topic.optString("title"), Modifier.weight(1f), fontSize = 13.sp, color = if (topic.optBoolean("done")) Muted else Accent)
+                    IconButton(onClick = { onDelete(topic.optString("id")) }) { Icon(Icons.Rounded.DeleteOutline, "Remove topic", tint = Muted) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSyllabus: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onExams: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
         Text("More", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(16.dp))
@@ -810,7 +853,7 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
         Spacer(Modifier.height(9.dp))
         QuickRow("Revision planner", "$taskCount study tasks", Icons.Rounded.EventNote, onPlanner)
         Spacer(Modifier.height(9.dp))
-        QuickRow("Syllabus tracker", "Track chapters and topics", Icons.Rounded.MenuBook, onPlanner)
+        QuickRow("Syllabus tracker", "Track chapters and topics", Icons.Rounded.MenuBook, onSyllabus)
         Spacer(Modifier.height(9.dp))
         QuickRow("Study progress", "See your saved study activity", Icons.Rounded.Insights, onProgress)
         Spacer(Modifier.height(9.dp))
