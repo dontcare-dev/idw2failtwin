@@ -136,6 +136,26 @@ private class LocalData(context: android.content.Context) {
         d.put(bucket, list)
         write(d)
     }
+    fun setFlag(bucket: String, id: String, field: String, value: Boolean) {
+        val d = read()
+        val list = d.optJSONArray(bucket) ?: JSONArray()
+        for (i in 0 until list.length()) {
+            val item = list.optJSONObject(i)
+            if (item?.optString("id") == id) item.put(field, value)
+        }
+        d.put(bucket, list)
+        write(d)
+    }
+    fun renameDocument(id: String, name: String) {
+        val d = read()
+        val list = d.optJSONArray("documents") ?: JSONArray()
+        for (i in 0 until list.length()) {
+            val item = list.optJSONObject(i)
+            if (item?.optString("id") == id) item.put("name", name.trim())
+        }
+        d.put("documents", list)
+        write(d)
+    }
     fun removeEntry(bucket: String, id: String) {
         val d = read(); val old = d.optJSONArray(bucket) ?: JSONArray(); val next = JSONArray()
         for (i in 0 until old.length()) if (old.optJSONObject(i)?.optString("id") != id) next.put(old.get(i))
@@ -301,7 +321,7 @@ private fun IdwApp() {
             Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
             when (currentPage) {
                 "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
-                "Library" -> LibraryScreen(docs, busy, status, onAdd = { picker.launch(arrayOf("application/pdf")) }, onDelete = { data.removeDocument(it); refresh++ })
+                "Library" -> LibraryScreen(docs, busy, status, onAdd = { picker.launch(arrayOf("application/pdf")) }, onDelete = { data.removeDocument(it); refresh++ }, onRename = { id, name -> data.renameDocument(id, name); refresh++ })
                 "Study" -> StudyScreen(question, { question = it }, answer, studyBoard, busy, status, onAsk = {
                     if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
                     else scope.launch {
@@ -346,7 +366,8 @@ private fun IdwApp() {
                     },
                     onAdd = { front, back -> data.addEntry("flashcards", front, back); refresh++ },
                     onDelete = { data.removeEntry("flashcards", it); refresh++ },
-                    onSave = { id, saved -> data.setSaved("flashcards", id, saved); refresh++ }
+                    onSave = { id, saved -> data.setSaved("flashcards", id, saved); refresh++ },
+                    onKnown = { id, known -> data.setFlag("flashcards", id, "known", known); refresh++ }
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
@@ -516,25 +537,40 @@ private fun QuickRow(title: String, subtitle: String, icon: androidx.compose.ui.
 }
 
 @Composable
-private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd: () -> Unit, onDelete: (String) -> Unit) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
+private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd: () -> Unit, onDelete: (String) -> Unit, onRename: (String, String) -> Unit) {
+    var search by remember { mutableStateOf("") }
+    var editingId by remember { mutableStateOf("") }
+    var editingName by remember { mutableStateOf("") }
+    val visibleDocs = (0 until docs.length()).mapNotNull { docs.optJSONObject(it) }
+        .filter { search.isBlank() || it.optString("name").contains(search, true) || it.optString("text").contains(search, true) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
         Text("Library", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(14.dp))
+        OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), placeholder = { Text("Search PDFs and their text") }, singleLine = true, shape = RoundedCornerShape(13.dp), colors = fieldColors())
+        if (editingId.isNotBlank()) {
+            OutlinedTextField(editingName, { editingName = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("PDF name") }, singleLine = true, colors = fieldColors())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { editingId = ""; editingName = "" }) { Text("Cancel") }
+                TextButton(onClick = { if (editingName.isNotBlank()) onRename(editingId, editingName); editingId = ""; editingName = "" }) { Text("Save name") }
+            }
+        }
         Spacer(Modifier.height(14.dp))
         Button(onClick = onAdd, enabled = !busy, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
             Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(8.dp)); Text("Import a PDF", fontWeight = FontWeight.SemiBold)
         }
         if (status.isNotBlank()) Text(status, color = Mint, fontSize = 11.sp, modifier = Modifier.padding(vertical = 10.dp))
         if (docs.length() == 0) EmptyState("No documents", "Import a PDF to begin.", Icons.Rounded.FolderOpen)
-
+        else if (visibleDocs.isEmpty()) EmptyState("No matching PDFs", "Try a different search term.", Icons.Rounded.Search)
         else Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 16.dp)) {
-            (0 until docs.length()).mapNotNull { docs.optJSONObject(it) }.forEach { doc ->
+            visibleDocs.forEach { doc ->
                 Row(Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(16.dp)).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.PictureAsPdf, null, tint = Accent); Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(doc.optString("name"), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Text("${doc.optString("text").length} characters extracted", color = Muted, fontSize = 10.sp)
+                        Text("${doc.optString("text").length} characters · searchable", color = Muted, fontSize = 10.sp)
                     }
-                    IconButton(onClick = { onDelete(doc.optString("id")) }) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) }
+                    IconButton(onClick = { editingId = doc.optString("id"); editingName = doc.optString("name") }) { Icon(Icons.Rounded.Edit, "Rename PDF", tint = Muted) }
+                    IconButton(onClick = { onDelete(doc.optString("id")) }) { Icon(Icons.Rounded.DeleteOutline, "Delete PDF", tint = Muted) }
                 }
             }
         }
@@ -618,14 +654,15 @@ private fun SettingsScreen(provider: String, keys: Map<String, String>, onSave: 
 
 
 @Composable
-private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onAdd: (String, String) -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit) {
+private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, status: String, onGenerate: () -> Unit, onAdd: (String, String) -> Unit, onDelete: (String) -> Unit, onSave: (String, Boolean) -> Unit, onKnown: (String, Boolean) -> Unit) {
     var front by remember { mutableStateOf("") }
     var back by remember { mutableStateOf("") }
     var index by remember { mutableIntStateOf(0) }
     var revealed by remember { mutableStateOf(false) }
     var savedOnly by remember { mutableStateOf(false) }
+    var knownOnly by remember { mutableStateOf(false) }
     val allCards = (0 until cards.length()).mapNotNull { cards.optJSONObject(it) }
-    val items = allCards.filter { !savedOnly || it.optBoolean("saved") }
+    val items = allCards.filter { (!savedOnly || it.optBoolean("saved")) && (!knownOnly || !it.optBoolean("known")) }
     LazyColumn(
         modifier = Modifier.fillMaxSize().imePadding(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
@@ -635,7 +672,8 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = !savedOnly, onClick = { savedOnly = false; index = 0; revealed = false }, label = { Text("All cards") })
-                FilterChip(selected = savedOnly, onClick = { savedOnly = true; index = 0; revealed = false }, label = { Text("Saved") }, leadingIcon = { Icon(Icons.Rounded.Bookmark, null) })
+                FilterChip(selected = savedOnly, onClick = { savedOnly = true; knownOnly = false; index = 0; revealed = false }, label = { Text("Saved") }, leadingIcon = { Icon(Icons.Rounded.Bookmark, null) })
+                FilterChip(selected = knownOnly, onClick = { knownOnly = !knownOnly; savedOnly = false; index = 0; revealed = false }, label = { Text("Still learning") })
             }
         }
         item {
@@ -717,6 +755,17 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
                 }
             }
             item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onKnown(card.optString("id"), !card.optBoolean("known")) }, modifier = Modifier.weight(1f)) {
+                        Icon(if (card.optBoolean("known")) Icons.Rounded.CheckCircle else Icons.Rounded.Replay, null)
+                        Spacer(Modifier.width(6.dp)); Text(if (card.optBoolean("known")) "Known" else "Mark known")
+                    }
+                    OutlinedButton(onClick = { index = (0 until items.size).random(); revealed = false }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Rounded.Shuffle, null); Spacer(Modifier.width(6.dp)); Text("Shuffle")
+                    }
+                }
+            }
+            item {
                 TextButton(onClick = { onDelete(card.optString("id")); index = (index - 1).coerceAtLeast(0); revealed = false },
                     modifier = Modifier.fillMaxWidth()) { Text("Delete card", color = Muted) }
             }
@@ -760,6 +809,8 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
         QuickRow("Exams", "Three-hour full-chapter mock exam and PDF paper", Icons.Rounded.Description, onExams)
         Spacer(Modifier.height(9.dp))
         QuickRow("Revision planner", "$taskCount study tasks", Icons.Rounded.EventNote, onPlanner)
+        Spacer(Modifier.height(9.dp))
+        QuickRow("Syllabus tracker", "Track chapters and topics", Icons.Rounded.MenuBook, onPlanner)
         Spacer(Modifier.height(9.dp))
         QuickRow("Study progress", "See your saved study activity", Icons.Rounded.Insights, onProgress)
         Spacer(Modifier.height(9.dp))
