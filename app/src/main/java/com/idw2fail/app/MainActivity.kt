@@ -633,12 +633,18 @@ private fun LibraryScreen(docs: JSONArray, busy: Boolean, status: String, onAdd:
     var search by remember { mutableStateOf("") }
     var editingId by remember { mutableStateOf("") }
     var editingName by remember { mutableStateOf("") }
-    val visibleDocs = (0 until docs.length()).mapNotNull { docs.optJSONObject(it) }
-        .filter { search.isBlank() || it.optString("name").contains(search, true) || it.optString("text").contains(search, true) }
+    var subjectFilter by remember { mutableStateOf("All subjects") }
+    val allDocs = (0 until docs.length()).mapNotNull { docs.optJSONObject(it) }
+    val subjects = allDocs.map { it.optString("subject", "General").ifBlank { "General" } }.distinct().sorted()
+    val visibleDocs = allDocs.filter { (subjectFilter == "All subjects" || it.optString("subject", "General") == subjectFilter) && (search.isBlank() || it.optString("name").contains(search, true) || it.optString("text").contains(search, true)) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
         Text("Library", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), placeholder = { Text("Search PDFs and their text") }, singleLine = true, shape = RoundedCornerShape(13.dp), colors = fieldColors())
+        Row(Modifier.fillMaxWidth().padding(top = 7.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FilterChip(selected = subjectFilter == "All subjects", onClick = { subjectFilter = "All subjects" }, label = { Text("All subjects") })
+            subjects.forEach { subject -> FilterChip(selected = subjectFilter == subject, onClick = { subjectFilter = subject }, label = { Text(subject) }) }
+        }
         if (editingId.isNotBlank()) {
             OutlinedTextField(editingName, { editingName = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("PDF name") }, singleLine = true, colors = fieldColors())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
