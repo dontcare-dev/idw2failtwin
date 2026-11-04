@@ -1099,6 +1099,17 @@ private fun StudyWhiteboard(board: JSONObject) {
     }
 }
 
+private fun readMcqChoices(detail: JSONObject): List<String> {
+    val array = detail.optJSONArray("choices") ?: detail.optJSONArray("options") ?: return emptyList()
+    return (0 until array.length()).map { index ->
+        val option = array.opt(index)
+        when (option) {
+            is JSONObject -> option.optString("text", option.optString("value", option.optString("option"))).trim()
+            else -> option.toString().trim()
+        }
+    }
+}
+
 private fun readMcqAnswer(detail: JSONObject, choices: List<String>): String {
     val answer = detail.optString("answer", detail.optString("correct_answer")).trim()
     val matched = choices.firstOrNull { it.equals(answer, true) }
