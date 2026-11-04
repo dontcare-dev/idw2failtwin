@@ -433,7 +433,7 @@ private fun IdwApp() {
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
                     onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSyllabus = { page = "Syllabus" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onExams = { page = "Exams" },
-                    onTools = { page = "Tools" }, onSearch = { page = "Search" }, onReadiness = { page = "Readiness" }, onWorkspace = { page = "Workspace" }, onSmartPlan = { val pending = data.entries("syllabus"); var added = 0; for (i in 0 until pending.length()) { val topic = pending.optJSONObject(i) ?: continue; if (!topic.optBoolean("done")) { data.addEntry("tasks", "Revise: " + topic.optString("title"), "Generated from syllabus"); added++ } }; refresh++; status = if (added == 0) "No unfinished syllabus topics to schedule." else "$" + "added revision tasks to your planner." }
+                    onTools = { page = "Tools" }, onSearch = { page = "Search" }, onReadiness = { page = "Readiness" }, onWorkspace = { page = "Workspace" }, onSmartPlan = { val pending = data.entries("syllabus"); var added = 0; for (i in 0 until pending.length()) { val topic = pending.optJSONObject(i) ?: continue; if (!topic.optBoolean("done")) { data.addEntry("tasks", "Revise: " + topic.optString("title"), "Generated from syllabus"); added++ } }; refresh++; status = if (added == 0) "No unfinished syllabus topics to schedule." else added.toString() + " revision tasks added to your planner." }
                 )
                 "Quizzes" -> QuizScreen(
                     quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
