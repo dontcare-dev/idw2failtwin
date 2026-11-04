@@ -1074,29 +1074,7 @@ private fun extractTutorResponse(raw: String): Pair<String, JSONObject?> {
 
 @Composable
 private fun StudyWhiteboard(board: JSONObject) {
-    val elements = board.optJSONArray("elements") ?: JSONArray()
-    val title = board.optString("title").ifBlank { "Study diagram" }
-    val labels = (0 until elements.length()).mapNotNull { i ->
-        elements.optJSONObject(i)?.takeIf { it.optString("type").equals("text", true) }?.optString("value")?.trim()?.takeIf { it.isNotBlank() }
-    }.distinct().take(8)
-    val nodes = if (labels.isEmpty()) listOf("Main concept", "Key details", "How it works", "Remember") else labels
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFDDE2E8), RoundedCornerShape(16.dp)).padding(14.dp)) {
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text("Key parts", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            nodes.chunked(2).forEachIndexed { rowIndex, pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    pair.forEachIndexed { col, label ->
-                        Row(Modifier.weight(1f).defaultMinSize(minHeight = 62.dp).background(if ((rowIndex + col) % 2 == 0) Color(0xFFF1EFF8) else Color(0xFFF1F5F4), RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(7.dp).background(if ((rowIndex + col) % 2 == 0) Color(0xFF6950A1) else Color(0xFF147D67), CircleShape))
-                            Text(label, Modifier.padding(start = 8.dp), fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium, maxLines = 3)
-                        }
-                    }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
-                }
-            }
-        }
-    }
+    StudyDiagram(board)
 }
 
 private fun readMcqChoices(detail: JSONObject): List<String> {
@@ -1326,7 +1304,7 @@ private suspend fun askWithFallback(provider: String, keys: List<String>, prompt
 }
 
 private suspend fun askProvider(provider: String, apiKey: String, prompt: String, studyContext: String): String = withContext(Dispatchers.IO) {
-    val system = "You are Mochi, a friendly cat study tutor for school students in grades 1–12. Explain clearly and accurately in simple language. When a small diagram would genuinely help, include a lightweight whiteboard drawing made from vector elements, not an image. Return only a JSON object with answer (string) and board (object or null). A board object has title and elements. Each element is either {type:'line',x1:0,y1:0,x2:0,y2:0}, {type:'circle',cx:0,cy:0,r:30}, or {type:'text',x:0,y:0,value:'label'}. Coordinates use a 0 to 1000 canvas. Keep to 12 elements, label important parts, and use board:null when a drawing adds no value. For a pendulum, draw its support, string, bob, and labels. Use this study material when relevant:\n\n${studyContext.ifBlank { "No documents have been added yet." }}"
+    val system = "You are Mochi, a friendly cat study tutor for school students in grades 1–12. Explain clearly and accurately in simple language. When a small diagram would genuinely help, include a lightweight whiteboard drawing made from vector elements, not an image. Return only a JSON object with answer (string) and board (object or null). For a useful diagram, board must be structured as {title:'short title',central:'main concept',branches:[{title:'branch label',detail:'short accurate explanation'},{title:'another branch',detail:'short explanation'}]}. Use 3 to 6 meaningful branches, concise school-level wording, correct relationships and no duplicate labels. For processes, order branches with step numbers in their titles. For anatomy/science diagrams, describe parts and their function. Do not return coordinates, lines, circles, ASCII art or pretend drawings. Use board:null if a visual would not help. For a pendulum, draw its support, string, bob, and labels. Use this study material when relevant:\n\n${studyContext.ifBlank { "No documents have been added yet." }}"
     val endpoint: String
     val body: JSONObject
     when (provider) {
