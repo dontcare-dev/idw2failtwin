@@ -281,19 +281,56 @@ private fun ReadinessMetric(title: String, detail: String, value: Int) {
 
 @Composable
 private fun SimpleBoard(board: JSONObject) {
-    val title = board.optString("title", "Diagram")
+    val title = board.optString("title", "Study diagram")
     val elements = board.optJSONArray("elements") ?: JSONArray()
-    Column(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(14.dp)).background(Color.White).border(1.dp, Color(0xFFDDE2E8), RoundedCornerShape(14.dp)).padding(12.dp)) {
-        Text(title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(210.dp)) {
-            val sx = size.width / 1000f; val sy = size.height / 1000f
-            for (i in 0 until minOf(elements.length(), 24)) {
-                val el = elements.optJSONObject(i) ?: continue
-                when (el.optString("type")) {
-                    "line" -> drawLine(HubInk, androidx.compose.ui.geometry.Offset(el.optDouble("x1").toFloat()*sx, el.optDouble("y1").toFloat()*sy), androidx.compose.ui.geometry.Offset(el.optDouble("x2").toFloat()*sx, el.optDouble("y2").toFloat()*sy), 2.5.dp.toPx())
-                    "circle" -> drawCircle(HubAccent, el.optDouble("r", 25.0).toFloat().coerceIn(5f, 150f)*minOf(sx,sy), androidx.compose.ui.geometry.Offset(el.optDouble("cx").toFloat()*sx, el.optDouble("cy").toFloat()*sy), style=androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-                    "text" -> drawContext.canvas.nativeCanvas.drawText(el.optString("value").take(40), el.optDouble("x").toFloat()*sx, el.optDouble("y").toFloat()*sy, android.graphics.Paint(3).apply { color = android.graphics.Color.DKGRAY; textSize = 27f })
+    val labels = (0 until elements.length()).mapNotNull { i ->
+        elements.optJSONObject(i)?.takeIf { it.optString("type") == "text" }?.optString("value")?.trim()?.takeIf { it.isNotBlank() }
+    }.distinct().take(8)
+    val branches = if (labels.isEmpty()) listOf("Key idea", "Important details", "Examples", "Remember") else labels
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Color(0xFFE1E5EB), RoundedCornerShape(18.dp)).padding(14.dp)) {
+        Text(title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Text("Concept map", color = HubMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height((100 + ((branches.size + 1) / 2) * 92).dp)) {
+            val w = size.width
+            val cardW = (w - 18.dp.toPx()) / 2f
+            val cardH = 66.dp.toPx()
+            val centerX = w / 2f
+            val topY = 12.dp.toPx()
+            val rootH = 48.dp.toPx()
+            val gapY = 22.dp.toPx()
+            val rows = (branches.size + 1) / 2
+            val totalH = rootH + 18.dp.toPx() + rows * (cardH + gapY)
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            val rootRect = android.graphics.RectF(centerX-cardW/2f, topY, centerX+cardW/2f, topY+rootH)
+            paint.color = android.graphics.Color.rgb(42, 49, 65)
+            drawContext.canvas.nativeCanvas.drawRoundRect(rootRect, 14.dp.toPx(), 14.dp.toPx(), paint)
+            paint.color = android.graphics.Color.WHITE; paint.textSize = 12.sp.toPx(); paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            drawContext.canvas.nativeCanvas.drawText(title.take(34), rootRect.left+12.dp.toPx(), rootRect.centerY()+4.dp.toPx(), paint)
+            branches.forEachIndexed { index, label ->
+                val row = index / 2
+                val col = index % 2
+                val x = if (col == 0) 0f else cardW + 18.dp.toPx()
+                val y = topY + rootH + 18.dp.toPx() + row * (cardH + gapY)
+                val rect = android.graphics.RectF(x, y, x+cardW, y+cardH)
+                paint.color = android.graphics.Color.rgb(239, 242, 248)
+                drawContext.canvas.nativeCanvas.drawRoundRect(rect, 12.dp.toPx(), 12.dp.toPx(), paint)
+                paint.color = android.graphics.Color.rgb(105, 80, 161)
+                paint.strokeWidth = 3.dp.toPx()
+                drawContext.canvas.nativeCanvas.drawLine(centerX, topY+rootH, rect.centerX(), y, paint)
+                paint.color = android.graphics.Color.rgb(34, 40, 52)
+                paint.textSize = 11.sp.toPx()
+                paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                val words = label.take(72).split(Regex("\\s+"))
+                var line = ""; var lineNo = 0
+                for (word in words) {
+                    val next = if (line.isEmpty()) word else "$line $word"
+                    if (paint.measureText(next) > cardW-20.dp.toPx() && line.isNotEmpty()) {
+                        drawContext.canvas.nativeCanvas.drawText(line, rect.left+10.dp.toPx(), rect.top+24.dp.toPx()+lineNo*14.dp.toPx(), paint)
+                        line = word; lineNo++
+                    } else line = next
+                    if (lineNo >= 2) break
                 }
+                if (line.isNotEmpty() && lineNo < 3) drawContext.canvas.nativeCanvas.drawText(line, rect.left+10.dp.toPx(), rect.top+24.dp.toPx()+lineNo*14.dp.toPx(), paint)
             }
         }
     }
