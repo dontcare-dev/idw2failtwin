@@ -381,6 +381,7 @@ private fun IdwApp() {
                     }
                 )
                 "Readiness" -> ExamReadinessScreen(data.entries("syllabus"), data.entries("quizzes"), data.entries("flashcards"), docs)
+                "Workspace" -> StudyExtrasScreen(docs) { page = it }
                 "Library" -> LibraryScreen(docs, busy, status, onAdd = { picker.launch(arrayOf("application/pdf")) }, onDelete = { data.removeDocument(it); refresh++ }, onRename = { id, name -> data.renameDocument(id, name); refresh++ })
                 "Study" -> StudyScreen(question, { question = it }, answer, studyBoard, busy, status, onAsk = {
                     if (offlineMode) { status = "Offline mode is on. Turn it off to use AI." } else if (vault.keys(aiProvider).isEmpty()) { page = "Settings"; status = "Add an API key for your selected provider first." }
@@ -432,7 +433,7 @@ private fun IdwApp() {
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
                     onFlashcards = { page = "Practice" }, onQuizzes = { page = "Quizzes" }, onPlanner = { page = "Planner" }, onSyllabus = { page = "Syllabus" }, onSettings = { page = "Settings" }, onProgress = { page = "Progress" }, onExams = { page = "Exams" },
-                    onTools = { page = "Tools" }, onSearch = { page = "Search" }, onReadiness = { page = "Readiness" }
+                    onTools = { page = "Tools" }, onSearch = { page = "Search" }, onReadiness = { page = "Readiness" }, onWorkspace = { page = "Workspace" }, onSmartPlan = { val pending = data.entries("syllabus"); var added = 0; for (i in 0 until pending.length()) { val topic = pending.optJSONObject(i) ?: continue; if (!topic.optBoolean("done")) { data.addEntry("tasks", "Revise: " + topic.optString("title"), "Generated from syllabus"); added++ } }; refresh++; status = if (added == 0) "No unfinished syllabus topics to schedule." else "$" + "added revision tasks to your planner." }
                 )
                 "Quizzes" -> QuizScreen(
                     quizzes = data.entries("quizzes"), refresh = refresh, generating = busy, status = status,
@@ -1016,7 +1017,7 @@ private fun SyllabusScreen(topics: JSONArray, onAdd: (String) -> Unit, onToggle:
 }
 
 @Composable
-private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSyllabus: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onExams: () -> Unit, onTools: () -> Unit, onSearch: () -> Unit, onReadiness: () -> Unit) {
+private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -> Unit, onPlanner: () -> Unit, onSyllabus: () -> Unit, onSettings: () -> Unit, onProgress: () -> Unit, onExams: () -> Unit, onTools: () -> Unit, onSearch: () -> Unit, onReadiness: () -> Unit, onWorkspace: () -> Unit, onSmartPlan: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
         Text("More", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(16.dp))
@@ -1027,6 +1028,10 @@ private fun MoreScreen(taskCount: Int, onFlashcards: () -> Unit, onQuizzes: () -
         QuickRow("Exams", "Three-hour full-chapter mock exam and PDF paper", Icons.Rounded.Description, onExams)
         Spacer(Modifier.height(9.dp))
         QuickRow("Revision planner", "$taskCount study tasks", Icons.Rounded.EventNote, onPlanner)
+        Spacer(Modifier.height(9.dp))
+        QuickRow("Smart study workspace", "Focus timer, textbook reader and interactive lab", Icons.Rounded.Timer, onWorkspace)
+        Spacer(Modifier.height(9.dp))
+        QuickRow("Build a plan from syllabus", "Turn unfinished topics into revision tasks", Icons.Rounded.AutoAwesome, onSmartPlan)
         Spacer(Modifier.height(9.dp))
         QuickRow("Syllabus tracker", "Track chapters and topics", Icons.Rounded.MenuBook, onSyllabus)
         Spacer(Modifier.height(9.dp))
