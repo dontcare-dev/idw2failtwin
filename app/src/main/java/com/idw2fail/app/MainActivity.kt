@@ -1070,47 +1070,28 @@ private fun extractTutorResponse(raw: String): Pair<String, JSONObject?> {
 @Composable
 private fun StudyWhiteboard(board: JSONObject) {
     val elements = board.optJSONArray("elements") ?: JSONArray()
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFDDE2E8), RoundedCornerShape(16.dp)).padding(12.dp)) {
-        Text(board.optString("title").ifBlank { "Whiteboard" }, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        Canvas(Modifier.fillMaxWidth().height(210.dp).padding(top = 8.dp)) {
-            val scaleX = size.width / 1000f
-            val scaleY = size.height / 1000f
-            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(35, 43, 54); textSize = 30f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
-            for (i in 0 until minOf(elements.length(), 24)) {
-                val element = elements.optJSONObject(i) ?: continue
-                when (element.optString("type").lowercase()) {
-                    "line" -> drawLine(
-                        Color(0xFF28313D),
-                        Offset(element.optDouble("x1", 0.0).toFloat() * scaleX, element.optDouble("y1", 0.0).toFloat() * scaleY),
-                        Offset(element.optDouble("x2", 0.0).toFloat() * scaleX, element.optDouble("y2", 0.0).toFloat() * scaleY),
-                        strokeWidth = 2.5.dp.toPx()
-                    )
-                    "circle" -> drawCircle(
-                        Color(0xFF6950A1),
-                        radius = element.optDouble("r", 24.0).toFloat().coerceIn(5f, 180f) * minOf(scaleX, scaleY),
-                        center = Offset(element.optDouble("cx", 0.0).toFloat() * scaleX, element.optDouble("cy", 0.0).toFloat() * scaleY),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5.dp.toPx())
-                    )
-                    "text" -> {
-                        val x = element.optDouble("x", 0.0).toFloat().coerceIn(0f, 1000f) * scaleX
-                        val y = element.optDouble("y", 0.0).toFloat().coerceIn(25f, 980f) * scaleY
-                        drawContext.canvas.nativeCanvas.drawText(element.optString("value").take(42), x, y, textPaint)
+    val title = board.optString("title").ifBlank { "Study diagram" }
+    val labels = (0 until elements.length()).mapNotNull { i ->
+        elements.optJSONObject(i)?.takeIf { it.optString("type").equals("text", true) }?.optString("value")?.trim()?.takeIf { it.isNotBlank() }
+    }.distinct().take(8)
+    val nodes = if (labels.isEmpty()) listOf("Main concept", "Key details", "How it works", "Remember") else labels
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Color(0xFFDDE2E8), RoundedCornerShape(16.dp)).padding(14.dp)) {
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("Key parts", color = Muted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            nodes.chunked(2).forEachIndexed { rowIndex, pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    pair.forEachIndexed { col, label ->
+                        Row(Modifier.weight(1f).defaultMinSize(minHeight = 62.dp).background(if ((rowIndex + col) % 2 == 0) Color(0xFFF1EFF8) else Color(0xFFF1F5F4), RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(7.dp).background(if ((rowIndex + col) % 2 == 0) Color(0xFF6950A1) else Color(0xFF147D67), CircleShape))
+                            Text(label, Modifier.padding(start = 8.dp), fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium, maxLines = 3)
+                        }
                     }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
     }
-}
-
-private fun readMcqChoices(detail: JSONObject): List<String> {
-    val choices = detail.optJSONArray("choices") ?: detail.optJSONArray("options") ?: return emptyList()
-    return (0 until choices.length()).map { index ->
-        val option = choices.opt(index)
-        when (option) {
-            is JSONObject -> option.optString("text", option.optString("value", option.optString("option"))).trim()
-            else -> option.toString().trim()
-        }
-    }.filter { it.isNotBlank() }.distinctBy { it.lowercase() }
 }
 
 private fun readMcqAnswer(detail: JSONObject, choices: List<String>): String {
