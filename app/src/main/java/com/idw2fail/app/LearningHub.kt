@@ -280,58 +280,35 @@ private fun ReadinessMetric(title: String, detail: String, value: Int) {
 }
 
 @Composable
-private fun SimpleBoard(board: JSONObject) {
-    val title = board.optString("title", "Study diagram")
+fun StudyDiagram(board: JSONObject) {
+    val title = board.optString("title", "Study diagram").ifBlank { "Study diagram" }
+    val center = board.optString("central", board.optString("center", title)).ifBlank { title }
+    val branchArray = board.optJSONArray("branches")
+    val branchLabels = if (branchArray != null) (0 until branchArray.length()).mapNotNull { i ->
+        val item = branchArray.opt(i)
+        if (item is JSONObject) item.optString("title", item.optString("label", item.optString("name"))).takeIf { it.isNotBlank() } else item.toString().takeIf { it.isNotBlank() }
+    } else emptyList()
     val elements = board.optJSONArray("elements") ?: JSONArray()
-    val labels = (0 until elements.length()).mapNotNull { i ->
-        elements.optJSONObject(i)?.takeIf { it.optString("type") == "text" }?.optString("value")?.trim()?.takeIf { it.isNotBlank() }
-    }.distinct().take(8)
-    val branches = if (labels.isEmpty()) listOf("Key idea", "Important details", "Examples", "Remember") else labels
-    Column(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Color(0xFFE1E5EB), RoundedCornerShape(18.dp)).padding(14.dp)) {
-        Text(title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Text("Concept map", color = HubMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp, bottom = 10.dp))
-        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height((100 + ((branches.size + 1) / 2) * 92).dp)) {
-            val w = size.width
-            val cardW = (w - 18.dp.toPx()) / 2f
-            val cardH = 66.dp.toPx()
-            val centerX = w / 2f
-            val topY = 12.dp.toPx()
-            val rootH = 48.dp.toPx()
-            val gapY = 22.dp.toPx()
-            val rows = (branches.size + 1) / 2
-            val totalH = rootH + 18.dp.toPx() + rows * (cardH + gapY)
-            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-            val rootRect = android.graphics.RectF(centerX-cardW/2f, topY, centerX+cardW/2f, topY+rootH)
-            paint.color = android.graphics.Color.rgb(42, 49, 65)
-            drawContext.canvas.nativeCanvas.drawRoundRect(rootRect, 14.dp.toPx(), 14.dp.toPx(), paint)
-            paint.color = android.graphics.Color.WHITE; paint.textSize = 12.sp.toPx(); paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            drawContext.canvas.nativeCanvas.drawText(title.take(34), rootRect.left+12.dp.toPx(), rootRect.centerY()+4.dp.toPx(), paint)
-            branches.forEachIndexed { index, label ->
-                val row = index / 2
-                val col = index % 2
-                val x = if (col == 0) 0f else cardW + 18.dp.toPx()
-                val y = topY + rootH + 18.dp.toPx() + row * (cardH + gapY)
-                val rect = android.graphics.RectF(x, y, x+cardW, y+cardH)
-                paint.color = android.graphics.Color.rgb(239, 242, 248)
-                drawContext.canvas.nativeCanvas.drawRoundRect(rect, 12.dp.toPx(), 12.dp.toPx(), paint)
-                paint.color = android.graphics.Color.rgb(105, 80, 161)
-                paint.strokeWidth = 3.dp.toPx()
-                drawContext.canvas.nativeCanvas.drawLine(centerX, topY+rootH, rect.centerX(), y, paint)
-                paint.color = android.graphics.Color.rgb(34, 40, 52)
-                paint.textSize = 11.sp.toPx()
-                paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                val words = label.take(72).split(Regex("\\s+"))
-                var line = ""; var lineNo = 0
-                for (word in words) {
-                    val next = if (line.isEmpty()) word else "$line $word"
-                    if (paint.measureText(next) > cardW-20.dp.toPx() && line.isNotEmpty()) {
-                        drawContext.canvas.nativeCanvas.drawText(line, rect.left+10.dp.toPx(), rect.top+24.dp.toPx()+lineNo*14.dp.toPx(), paint)
-                        line = word; lineNo++
-                    } else line = next
-                    if (lineNo >= 2) break
+    val elementLabels = (0 until elements.length()).mapNotNull { i -> elements.optJSONObject(i)?.takeIf { it.optString("type") == "text" }?.optString("value")?.trim()?.takeIf { it.isNotBlank() } }
+    val nodes = (branchLabels + elementLabels).filterNot { it.equals(center, true) || it.equals(title, true) }.distinct().take(8).ifEmpty { listOf("Key idea", "How it works", "Important details", "Example") }
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Color(0xFFE0E4EA), RoundedCornerShape(18.dp)).padding(14.dp)) {
+        Text(title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text("CONCEPT OVERVIEW", color = HubMuted, fontSize = 9.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 3.dp, bottom = 13.dp))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(center, Modifier.fillMaxWidth(.82f).clip(RoundedCornerShape(13.dp)).background(Color(0xFF202938)).padding(14.dp), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(22.dp)) { val x=size.width/2f; drawLine(Color(0xFF9AA5B5), androidx.compose.ui.geometry.Offset(x,0f), androidx.compose.ui.geometry.Offset(x,size.height), 2.dp.toPx()) }
+        nodes.chunked(2).forEachIndexed { row, pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEachIndexed { col, label ->
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if ((row*2+col)%2==0) Color(0xFFF2F0F8) else Color(0xFFEEF5F3)).border(1.dp,Color(0xFFE4E7EC),RoundedCornerShape(12.dp)).padding(11.dp)) {
+                        Text("0${row*2+col+1}", color=HubMuted, fontSize=9.sp, fontWeight=FontWeight.Bold)
+                        Text(label, color=HubInk, fontSize=11.sp, lineHeight=15.sp, fontWeight=FontWeight.Medium, modifier=Modifier.padding(top=5.dp))
+                    }
                 }
-                if (line.isNotEmpty() && lineNo < 3) drawContext.canvas.nativeCanvas.drawText(line, rect.left+10.dp.toPx(), rect.top+24.dp.toPx()+lineNo*14.dp.toPx(), paint)
+                if (pair.size==1) Spacer(Modifier.weight(1f))
             }
+            if (row < (nodes.size-1)/2) androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(12.dp)) { val x=size.width/2f; drawLine(Color(0xFFB7BFCA), androidx.compose.ui.geometry.Offset(x,0f), androidx.compose.ui.geometry.Offset(x,size.height), 1.5.dp.toPx()) }
         }
     }
 }
