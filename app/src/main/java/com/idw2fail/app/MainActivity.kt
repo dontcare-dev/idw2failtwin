@@ -1239,9 +1239,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                             .border(1.dp, if (chosen && isCorrect) Mint else if (chosen) Coral else Color(0xFF17191D).copy(alpha = .14f), RoundedCornerShape(14.dp))
                             .clickable(enabled = selectedAnswer.isBlank()) {
                                 selectedAnswer = option
-                                onWrong(question.optString("id"), !isCorrect)
-                                onResult(question.optString("id"), isCorrect)
-                                if (isCorrect) { score++; celebration++ }
+                                if (isCorrect) score++
                             }
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1254,27 +1252,38 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             } else {
                 Text("The saved question has missing or invalid answer options. Generate a new quiz to replace it.", color = Coral, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF0EA), RoundedCornerShape(12.dp)).padding(12.dp))
             }
-            if (selectedAnswer.isNotBlank()) {
-                val correct = selectedAnswer == correctAnswer
-                if (correct) {
-                    ConfettiBurst(trigger = celebration)
-                    Row(Modifier.fillMaxWidth().padding(top = 9.dp).clip(RoundedCornerShape(15.dp)).background(Color(0xFFE4F5EF)).padding(12.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        listOf(Coral, Gold, Violet, Mint, Color(0xFF9CCBFF)).forEach { balloon ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Box(Modifier.size(19.dp, 23.dp).clip(RoundedCornerShape(50)).background(balloon))
-                                Box(Modifier.width(1.dp).height(8.dp).background(Color.White.copy(alpha = .6f)))
-                            }
+            Box(Modifier.fillMaxWidth().heightIn(min = 88.dp).padding(top = 8.dp), contentAlignment = Alignment.TopStart) {
+                if (selectedAnswer.isNotBlank()) {
+                    val correct = selectedAnswer == correctAnswer
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
+                        .background(if (correct) Color(0xFFE4F5EF) else Color(0xFFFFF0EA))
+                        .padding(horizontal = 12.dp, vertical = 9.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (correct) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
+                                null, tint = if (correct) Mint else Coral, modifier = Modifier.size(17.dp))
+                            Text(if (correct) "Correct" else "Not quite · Answer: $correctAnswer",
+                                color = if (correct) Mint else Coral, fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp, modifier = Modifier.padding(start = 7.dp))
                         }
-                        Text("Correct", color = Mint, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        if (detail.optString("explanation").isNotBlank()) {
+                            Text(detail.optString("explanation"), color = Muted, fontSize = 10.sp,
+                                lineHeight = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                        }
                     }
-                } else Text("Incorrect · Answer: $correctAnswer", color = Coral, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
-                Text(detail.optString("explanation"), color = Muted, fontSize = 11.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 5.dp))
+                }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Score: $score", color = Muted, fontSize = 11.sp)
                 Spacer(Modifier.weight(1f))
-                Button(onClick = { if (selectedAnswer != correctAnswer) { if (index < questions.lastIndex) index++ else { index = 0; score = 0 } }; selectedAnswer = "" }, enabled = selectedAnswer.isNotBlank() && choices.size == 4, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
-                    Text(if (index == questions.lastIndex) "Restart quiz" else "Next question")
+                Button(onClick = {
+                    val correct = selectedAnswer == correctAnswer
+                    onResult(question.optString("id"), correct)
+                    if (!correct && index < questions.lastIndex) index++
+                    else if (index >= questions.lastIndex) { index = 0; if (!correct) score = 0 }
+                    selectedAnswer = ""
+                }, enabled = selectedAnswer.isNotBlank() && choices.size == 4, shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+                    Text(if (index == questions.lastIndex) "Finish / next" else "Next question")
                 }
             }
             TextButton(onClick = { onDelete(question.optString("id")) }, modifier = Modifier.align(Alignment.End)) {
