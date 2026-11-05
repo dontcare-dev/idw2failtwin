@@ -166,6 +166,14 @@ private class LocalData(context: android.content.Context) {
         d.put("documents", next); write(d)
     }
     fun entries(bucket: String): JSONArray = read().optJSONArray(bucket) ?: JSONArray()
+    fun completeWorldActivity(activityId: String, regionId: String) {
+        val d = read()
+        val list = d.optJSONArray("worldProgress") ?: JSONArray()
+        val exists = (0 until list.length()).any { list.optJSONObject(it)?.optString("activityId") == activityId }
+        if (!exists) list.put(JSONObject().put("activityId", activityId).put("regionId", regionId).put("completedAt", System.currentTimeMillis()))
+        d.put("worldProgress", list)
+        write(d)
+    }
     fun addEntry(bucket: String, title: String, body: String) {
         val d = read(); val list = d.optJSONArray(bucket) ?: JSONArray()
         list.put(JSONObject().put("id", UUID.randomUUID().toString()).put("title", title).put("body", body).put("done", false).put("createdAt", System.currentTimeMillis()))
@@ -337,11 +345,11 @@ private fun IdwApp() {
                 containerColor = Color.Transparent,
                 contentColor = Color(0xFF17191D)
             ) {
-                listOf("Home", "Library", "Study", "MCQs", "More").forEach { item ->
+                listOf("Home", "Library", "World", "MCQs", "More").forEach { item ->
                     val icon = when (item) {
                         "Home" -> Icons.Rounded.Home
                         "Library" -> Icons.Rounded.FolderOpen
-                        "Study" -> Icons.Rounded.AutoAwesome
+                        "World" -> Icons.Rounded.Explore
                         "MCQs" -> Icons.Rounded.Quiz
                         else -> Icons.Rounded.MoreHoriz
                     }
@@ -360,6 +368,7 @@ private fun IdwApp() {
             Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
             when (currentPage) {
                 "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
+                "World" -> StudyWorldScreen(data.entries("worldProgress"), onComplete = { activityId, regionId -> data.completeWorldActivity(activityId, regionId); refresh++ }, onOpenMochi = { page = "Study" })
                 "Search" -> GlobalSearchScreen(docs, data.entries("quizzes"), data.entries("flashcards"), data.entries("syllabus"), data.entries("formulas")) { page = it }
                 "Tools" -> LearningHubScreen(
                     documents = docs, result = hubResult, board = hubBoard, status = status, busy = busy, offline = offlineMode,
