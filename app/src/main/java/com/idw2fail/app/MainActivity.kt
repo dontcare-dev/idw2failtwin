@@ -368,7 +368,7 @@ private fun IdwApp() {
             Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
             when (currentPage) {
                 "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
-                "World" -> StudyWorldScreen(data.entries("worldProgress"), onComplete = { activityId, regionId -> data.completeWorldActivity(activityId, regionId); refresh++ }, onOpenMochi = { page = "Study" })
+                "World" -> StudyWorldScreen(data.entries("worldProgress"), onComplete = { activityId, regionId -> data.completeWorldActivity(activityId, regionId); refresh++ }, onOpenMochi = { topic -> question = topic; page = "Study" })
                 "Search" -> GlobalSearchScreen(docs, data.entries("quizzes"), data.entries("flashcards"), data.entries("syllabus"), data.entries("formulas")) { page = it }
                 "Tools" -> LearningHubScreen(
                     documents = docs, result = hubResult, board = hubBoard, status = status, busy = busy, offline = offlineMode,
