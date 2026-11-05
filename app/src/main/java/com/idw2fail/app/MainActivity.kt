@@ -174,6 +174,25 @@ private class LocalData(context: android.content.Context) {
         d.put("worldProgress", list)
         write(d)
     }
+    fun recordWorldAttempt(activityId: String, regionId: String, correct: Boolean) {
+        val d = read()
+        val list = d.optJSONArray("worldAttempts") ?: JSONArray()
+        var found = false
+        for (i in 0 until list.length()) {
+            val item = list.optJSONObject(i) ?: continue
+            if (item.optString("activityId") == activityId) {
+                item.put("attemptCount", item.optInt("attemptCount") + 1)
+                if (correct) item.put("correctCount", item.optInt("correctCount") + 1)
+                item.put("lastCorrect", correct)
+                item.put("updatedAt", System.currentTimeMillis())
+                found = true
+                break
+            }
+        }
+        if (!found) list.put(JSONObject().put("activityId", activityId).put("regionId", regionId).put("attemptCount", 1).put("correctCount", if (correct) 1 else 0).put("lastCorrect", correct).put("updatedAt", System.currentTimeMillis()))
+        d.put("worldAttempts", list)
+        write(d)
+    }
     fun addEntry(bucket: String, title: String, body: String) {
         val d = read(); val list = d.optJSONArray(bucket) ?: JSONArray()
         list.put(JSONObject().put("id", UUID.randomUUID().toString()).put("title", title).put("body", body).put("done", false).put("createdAt", System.currentTimeMillis()))
@@ -368,7 +387,7 @@ private fun IdwApp() {
             Crossfade(targetState = page, animationSpec = tween(260), label = "page") { currentPage ->
             when (currentPage) {
                 "Home" -> HomeScreen(docs.length(), data.entries("flashcards").length()) { page = it }
-                "World" -> StudyWorldScreen(data.entries("worldProgress"), onComplete = { activityId, regionId -> data.completeWorldActivity(activityId, regionId); refresh++ }, onOpenMochi = { topic -> question = topic; page = "Study" })
+                "World" -> StudyWorldScreen(data.entries("worldProgress"), data.entries("worldAttempts"), onAttempt = { activityId, regionId, correct -> data.recordWorldAttempt(activityId, regionId, correct); refresh++ }, onComplete = { activityId, regionId -> data.completeWorldActivity(activityId, regionId); refresh++ }, onOpenMochi = { topic -> question = topic; page = "Study" })
                 "Search" -> GlobalSearchScreen(docs, data.entries("quizzes"), data.entries("flashcards"), data.entries("syllabus"), data.entries("formulas")) { page = it }
                 "Tools" -> LearningHubScreen(
                     documents = docs, result = hubResult, board = hubBoard, status = status, busy = busy, offline = offlineMode,
