@@ -467,9 +467,7 @@ private fun IdwApp() {
                             try {
                                 val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
                                 val raw = askWithFallback(aiProvider, vault.keys(aiProvider), "Create 8 useful school revision flashcards from the study material. Do not repeat any of these previously used prompts: " + (0 until (data.entries("flashcards").length() + data.entries("masteredFlashcards").length())).mapNotNull { i -> (data.entries("flashcards").optJSONObject(i) ?: data.entries("masteredFlashcards").optJSONObject(i - data.entries("flashcards").length()))?.optString("title") }.joinToString(" | ").take(5000) + ". Return ONLY a valid JSON array. Each item must have exactly two string fields: question and answer. Do not include markdown fences or any text outside the JSON array.", contextText)
-                                val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
-                                if (start < 0 || end <= start) throw Exception("The AI returned an invalid flashcard format. Try again.")
-                                val generated = JSONArray(raw.substring(start, end + 1))
+                                val generated = parseGeneratedJsonArray(raw)
                                 var added = 0
                                 val seenPrompts = mutableSetOf<String>()
                                 for (bucket in listOf("flashcards", "masteredFlashcards")) {
@@ -509,9 +507,7 @@ private fun IdwApp() {
                             try {
                                 val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
                                 val raw = askWithFallback(aiProvider, vault.keys(aiProvider), "Create 10 school-level multiple-choice questions from the study material. Do not repeat these previously used questions: " + (0 until (data.entries("quizzes").length() + data.entries("masteredQuizzes").length())).mapNotNull { i -> (data.entries("quizzes").optJSONObject(i) ?: data.entries("masteredQuizzes").optJSONObject(i - data.entries("quizzes").length()))?.optString("title") }.joinToString(" | ").take(7000) + ". Return ONLY a valid JSON array. Each item must contain question (string), choices (array of exactly four short strings), answer (one exact choice string), and explanation (string). Exactly one correct answer per question. No markdown or text outside JSON.", contextText)
-                                val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
-                                if (start < 0 || end <= start) throw Exception("The AI returned an invalid quiz format. Try again.")
-                                val generated = JSONArray(raw.substring(start, end + 1))
+                                val generated = parseGeneratedJsonArray(raw)
                                 var added = 0
                                 val seenQuestions = mutableSetOf<String>()
                                 for (bucket in listOf("quizzes", "masteredQuizzes")) {
@@ -1154,6 +1150,48 @@ private fun extractTutorResponse(raw: String): Pair<String, JSONObject?> {
 @Composable
 private fun StudyWhiteboard(board: JSONObject) {
     StudyDiagram(board)
+}
+
+
+private fun parseGeneratedJsonArray(raw: String): JSONArray {
+    val firstArray = raw.indexOf('[')
+    if (firstArray < 0) throw Exception("The AI response did not contain a JSON array. Please try generating again.")
+    val result = JSONArray()
+    var objectStart = -1
+    var depth = 0
+    var inString = false
+    var escaped = false
+    for (i in firstArray + 1 until raw.length) {
+        val ch = raw[i]
+        if (inString) {
+            if (escaped) escaped = false
+            else if (ch == '\\\\') escaped = true
+            else if (ch == '"') inString = false
+            continue
+        }
+        when (ch) {
+            '"' -> inString = true
+            '{' -> {
+                if (depth == 0) objectStart = i
+                depth++
+            }
+            '}' -> {
+                if (depth > 0) {
+                    depth--
+                    if (depth == 0 && objectStart >= 0) {
+                        val candidate = raw.substring(objectStart, i + 1)
+                        runCatching { JSONObject(candidate) }.getOrNull()?.let(result::put)
+                        objectStart = -1
+                    }
+                }
+            }
+            ']' -> if (depth == 0) return result
+        }
+    }
+    if (result.length() == 0) {
+        throw Exception("The AI response was cut off before a complete question was received. Please try generating again.")
+    }
+    return result
 }
 
 private fun readMcqChoices(detail: JSONObject): List<String> {
