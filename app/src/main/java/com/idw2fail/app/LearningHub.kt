@@ -284,31 +284,70 @@ fun StudyDiagram(board: JSONObject) {
     val title = board.optString("title", "Study diagram").ifBlank { "Study diagram" }
     val center = board.optString("central", board.optString("center", title)).ifBlank { title }
     val branchArray = board.optJSONArray("branches")
-    val branchLabels = if (branchArray != null) (0 until branchArray.length()).mapNotNull { i ->
+    val branchNodes = if (branchArray != null) (0 until branchArray.length()).mapNotNull { i ->
         val item = branchArray.opt(i)
-        if (item is JSONObject) item.optString("title", item.optString("label", item.optString("name"))).takeIf { it.isNotBlank() } else item.toString().takeIf { it.isNotBlank() }
+        when (item) {
+            is JSONObject -> {
+                val label = item.optString("title", item.optString("label", item.optString("name"))).trim()
+                val detail = item.optString("detail", item.optString("description")).trim()
+                if (label.isBlank() && detail.isBlank()) null else (label.ifBlank { "Key detail" }) to detail
+            }
+            else -> item.toString().trim().takeIf { it.isNotBlank() }?.let { it to "" }
+        }
     } else emptyList()
     val elements = board.optJSONArray("elements") ?: JSONArray()
-    val elementLabels = (0 until elements.length()).mapNotNull { i -> elements.optJSONObject(i)?.takeIf { it.optString("type") == "text" }?.optString("value")?.trim()?.takeIf { it.isNotBlank() } }
-    val nodes = (branchLabels + elementLabels).filterNot { it.equals(center, true) || it.equals(title, true) }.distinct().take(8).ifEmpty { listOf("Key idea", "How it works", "Important details", "Example") }
-    Column(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Color(0xFFE0E4EA), RoundedCornerShape(18.dp)).padding(14.dp)) {
+    val elementNodes = (0 until elements.length()).mapNotNull { i ->
+        elements.optJSONObject(i)?.takeIf { it.optString("type") == "text" }?.optString("value")
+            ?.trim()?.takeIf { it.isNotBlank() }?.let { it to "" }
+    }
+    val nodes = (branchNodes + elementNodes)
+        .filterNot { it.first.equals(center, true) || it.first.equals(title, true) }
+        .distinctBy { it.first.lowercase() }.take(8)
+        .ifEmpty { listOf("Main idea" to "The central concept to remember.", "How it works" to "The process or relationship involved.", "Key detail" to "An important fact from the explanation.") }
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp)
+        .clip(RoundedCornerShape(18.dp)).background(Color.White)
+        .border(1.dp, Color(0xFFE0E4EA), RoundedCornerShape(18.dp)).padding(14.dp)) {
         Text(title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        Text("CONCEPT OVERVIEW", color = HubMuted, fontSize = 9.sp, letterSpacing = 1.sp, modifier = Modifier.padding(top = 3.dp, bottom = 13.dp))
+        Text("VISUAL SUMMARY", color = HubMuted, fontSize = 9.sp, letterSpacing = 1.sp,
+            modifier = Modifier.padding(top = 3.dp, bottom = 13.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Text(center, Modifier.fillMaxWidth(.82f).clip(RoundedCornerShape(13.dp)).background(Color(0xFF202938)).padding(14.dp), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(center, Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp))
+                .background(Color(0xFF202938)).padding(horizontal = 14.dp, vertical = 15.dp),
+                color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 19.sp)
         }
-        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(22.dp)) { val x=size.width/2f; drawLine(Color(0xFF9AA5B5), androidx.compose.ui.geometry.Offset(x,0f), androidx.compose.ui.geometry.Offset(x,size.height), 2.dp.toPx()) }
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(18.dp)) {
+            val x = size.width / 2f
+            drawLine(Color(0xFF9AA5B5), androidx.compose.ui.geometry.Offset(x, 0f),
+                androidx.compose.ui.geometry.Offset(x, size.height), 2.dp.toPx())
+            drawLine(Color(0xFF9AA5B5), androidx.compose.ui.geometry.Offset(size.width * .25f, size.height),
+                androidx.compose.ui.geometry.Offset(size.width * .75f, size.height), 2.dp.toPx())
+        }
         nodes.chunked(2).forEachIndexed { row, pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                pair.forEachIndexed { col, label ->
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if ((row*2+col)%2==0) Color(0xFFF2F0F8) else Color(0xFFEEF5F3)).border(1.dp,Color(0xFFE4E7EC),RoundedCornerShape(12.dp)).padding(11.dp)) {
-                        Text("0${row*2+col+1}", color=HubMuted, fontSize=9.sp, fontWeight=FontWeight.Bold)
-                        Text(label, color=HubInk, fontSize=11.sp, lineHeight=15.sp, fontWeight=FontWeight.Medium, modifier=Modifier.padding(top=5.dp))
+                pair.forEachIndexed { col, node ->
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                        .background(if ((row * 2 + col) % 2 == 0) Color(0xFFF2F0F8) else Color(0xFFEEF5F3))
+                        .border(1.dp, Color(0xFFE1E5EB), RoundedCornerShape(12.dp)).padding(11.dp)) {
+                        Text("%02d".format(row * 2 + col + 1), color = HubMuted,
+                            fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(node.first, color = HubInk, fontSize = 12.sp, lineHeight = 16.sp,
+                            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+                        if (node.second.isNotBlank()) {
+                            Text(node.second, color = HubMuted, fontSize = 10.sp, lineHeight = 15.sp,
+                                modifier = Modifier.padding(top = 5.dp))
+                        }
                     }
                 }
-                if (pair.size==1) Spacer(Modifier.weight(1f))
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
-            if (row < (nodes.size-1)/2) androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(12.dp)) { val x=size.width/2f; drawLine(Color(0xFFB7BFCA), androidx.compose.ui.geometry.Offset(x,0f), androidx.compose.ui.geometry.Offset(x,size.height), 1.5.dp.toPx()) }
+            if (row < (nodes.size - 1) / 2) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(9.dp)) {
+                    val x = size.width / 2f
+                    drawLine(Color(0xFFB7BFCA), androidx.compose.ui.geometry.Offset(x, 0f),
+                        androidx.compose.ui.geometry.Offset(x, size.height), 1.5.dp.toPx())
+                }
+            }
         }
     }
 }
