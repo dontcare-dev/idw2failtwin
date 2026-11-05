@@ -180,7 +180,7 @@ private fun WorldSimulationStudio() {
 }
 
 @Composable
-fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, onOpenMochi: (String) -> Unit) {
+fun StudyWorldScreen(progress: JSONArray, attempts: JSONArray, onAttempt: (String, String, Boolean) -> Unit, onComplete: (String, String) -> Unit, onOpenMochi: (String) -> Unit) {
     val regions = remember { worldRegions().map { it.copy(activities = it.activities + worldExtraActivities(it.id)) } }
     var selectedRegion by remember { mutableStateOf<String?>(null) }
     var selectedActivity by remember { mutableStateOf<WorldActivity?>(null) }
@@ -194,8 +194,14 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
     }
     val total = regions.sumOf { it.activities.size }
     val done = regions.sumOf { region -> region.activities.count { it.id in completed } }
+    val attemptCount = (0 until attempts.length()).sumOf { attempts.optJSONObject(it)?.optInt("attemptCount") ?: 0 }
+    val correctCount = (0 until attempts.length()).sumOf { attempts.optJSONObject(it)?.optInt("correctCount") ?: 0 }
+    val accuracy = if (attemptCount == 0) 0 else correctCount * 100 / attemptCount
+    val recentAttempt = (0 until attempts.length()).mapNotNull { attempts.optJSONObject(it) }.maxByOrNull { it.optLong("updatedAt") }
+    val recentActivity = recentAttempt?.let { record -> regions.flatMap { it.activities }.firstOrNull { it.id == record.optString("activityId") } }
     val region = regions.firstOrNull { it.id == selectedRegion }
     val activity = selectedActivity
+    val activityRegionId = activity?.let { active -> regions.firstOrNull { r -> r.activities.any { it.id == active.id } }?.id }.orEmpty()
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 8.dp)) {
         if (activity != null) {
@@ -241,7 +247,7 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
                     OutlinedButton(onClick = { chosen = -1; checked = false }, modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) { Text("Try again") }
                 }
             } else {
-                Button(onClick = { checked = true }, enabled = chosen >= 0, modifier = Modifier.fillMaxWidth().padding(top = 15.dp), colors = ButtonDefaults.buttonColors(containerColor = WorldInk)) { Text("Check answer", color = Color.White) }
+                Button(onClick = { checked = true; onAttempt(activity.id, activityRegionId, chosen == activity.answer) }, enabled = chosen >= 0, modifier = Modifier.fillMaxWidth().padding(top = 15.dp), colors = ButtonDefaults.buttonColors(containerColor = WorldInk)) { Text("Check answer", color = Color.White) }
             }
             return@Column
         }
@@ -288,6 +294,28 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
             }
             LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(6.dp).clip(CircleShape), color = Color(0xFF9AD9C6), trackColor = Color.White.copy(alpha = .18f))
             Text("Progress is saved on this device. No points or streak pressure.", color = Color.White.copy(alpha = .68f), fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(WorldPanel).padding(12.dp)) {
+                Text("QUESTIONS TRIED", color = WorldMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
+                Text("$attemptCount", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WorldInk)
+            }
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(13.dp)).background(WorldPanel).padding(12.dp)) {
+                Text("ANSWER ACCURACY", color = WorldMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
+                Text(if (attemptCount == 0) "—" else "$accuracy%", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WorldMint)
+            }
+        }
+        if (recentActivity != null && recentActivity.id !in completed) {
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp).clip(RoundedCornerShape(14.dp)).background(Color(0xFFEDEAF6)).clickable {
+                selectedRegion = null; selectedActivity = recentActivity; chosen = -1; checked = false; hintVisible = false
+            }.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.PlayArrow, null, tint = WorldViolet)
+                Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                    Text("PICK UP WHERE YOU LEFT OFF", color = WorldViolet, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
+                    Text(recentActivity.title, color = WorldInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Icon(Icons.Rounded.ChevronRight, null, tint = WorldViolet)
+            }
         }
         Text("Your learning map", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
         WorldMapPreview(regions, completed) { selectedRegion = it }
