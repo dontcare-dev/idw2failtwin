@@ -229,7 +229,7 @@ fun LearningHubScreen(
             Text("Result", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
             Text(result, Modifier.fillMaxWidth().background(HubPanel, RoundedCornerShape(15.dp)).padding(14.dp), fontSize = 12.sp, lineHeight = 19.sp)
         }
-        if (board != null) SimpleBoard(board)
+        if (board != null) StudyDiagram(board)
         Spacer(Modifier.height(20.dp))
     }
 }
