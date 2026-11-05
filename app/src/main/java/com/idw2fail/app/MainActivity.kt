@@ -137,6 +137,10 @@ private class LocalData(context: android.content.Context) {
                     item.put("wrong", false)
                     if (!item.optBoolean("saved")) {
                         d.put("masteredQuizCount", d.optInt("masteredQuizCount") + 1)
+                        val history = d.optJSONArray("masteredQuizzes") ?: JSONArray()
+                        val alreadyRecorded = (0 until history.length()).any { history.optJSONObject(it)?.optString("id") == id }
+                        if (!alreadyRecorded) history.put(JSONObject(item.toString()).put("masteredAt", System.currentTimeMillis()))
+                        d.put("masteredQuizzes", history)
                         continue
                     }
                 } else item.put("wrong", true)
@@ -152,6 +156,10 @@ private class LocalData(context: android.content.Context) {
             if (item.optString("id") == id) {
                 if (known && !item.optBoolean("saved")) {
                     d.put("masteredFlashcardCount", d.optInt("masteredFlashcardCount") + 1)
+                    val history = d.optJSONArray("masteredFlashcards") ?: JSONArray()
+                    val alreadyRecorded = (0 until history.length()).any { history.optJSONObject(it)?.optString("id") == id }
+                    if (!alreadyRecorded) history.put(JSONObject(item.toString()).put("masteredAt", System.currentTimeMillis()))
+                    d.put("masteredFlashcards", history)
                     continue
                 }
                 item.put("known", known)
@@ -458,16 +466,21 @@ private fun IdwApp() {
                             busy = true; status = "Creating flashcards from your PDFs…"
                             try {
                                 val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
-                                val raw = askWithFallback(aiProvider, vault.keys(aiProvider), "Create 8 useful school revision flashcards from the study material. Avoid repeating existing flashcards. Return ONLY a valid JSON array. Each item must have exactly two string fields: question and answer. Do not include markdown fences or any text outside the JSON array.", contextText)
+                                val raw = askWithFallback(aiProvider, vault.keys(aiProvider), "Create 8 useful school revision flashcards from the study material. Do not repeat any of these previously used prompts: " + (0 until (data.entries("flashcards").length() + data.entries("masteredFlashcards").length())).mapNotNull { i -> (data.entries("flashcards").optJSONObject(i) ?: data.entries("masteredFlashcards").optJSONObject(i - data.entries("flashcards").length()))?.optString("title") }.joinToString(" | ").take(5000) + ". Return ONLY a valid JSON array. Each item must have exactly two string fields: question and answer. Do not include markdown fences or any text outside the JSON array.", contextText)
                                 val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
                                 if (start < 0 || end <= start) throw Exception("The AI returned an invalid flashcard format. Try again.")
                                 val generated = JSONArray(raw.substring(start, end + 1))
                                 var added = 0
+                                val seenPrompts = mutableSetOf<String>()
+                                for (bucket in listOf("flashcards", "masteredFlashcards")) {
+                                    val existing = data.entries(bucket)
+                                    for (j in 0 until existing.length()) existing.optJSONObject(j)?.optString("title")?.trim()?.lowercase()?.let(seenPrompts::add)
+                                }
                                 for (i in 0 until generated.length()) {
                                     val item = generated.optJSONObject(i) ?: continue
                                     val q = item.optString("question").trim(); val a = item.optString("answer").trim()
                                     if (q.isNotBlank() && a.isNotBlank()) {
-                                        val duplicate = (0 until data.entries("flashcards").length()).any { data.entries("flashcards").optJSONObject(it)?.optString("title")?.trim()?.equals(q, true) == true }
+                                        val duplicate = !seenPrompts.add(q.lowercase())
                                         if (!duplicate) { data.addEntry("flashcards", q, a); added++ }
                                     }
                                 }
@@ -495,11 +508,16 @@ private fun IdwApp() {
                             busy = true; status = "Generating your practice quiz…"
                             try {
                                 val contextText = buildString { for (i in 0 until docs.length()) append(docs.optJSONObject(i)?.optString("text", "")).append("\n") }.take(14000)
-                                val raw = askWithFallback(aiProvider, vault.keys(aiProvider), "Create 10 school-level multiple-choice questions from the study material. Do not repeat these existing questions: " + (0 until data.entries("quizzes").length()).mapNotNull { data.entries("quizzes").optJSONObject(it)?.optString("title") }.joinToString(" | ").take(5000) + ". Return ONLY a valid JSON array. Each item must contain question (string), choices (array of exactly four short strings), answer (one exact choice string), and explanation (string). Exactly one correct answer per question. No markdown or text outside JSON.", contextText)
+                                val raw = askWithFallback(aiProvider, vault.keys(aiProvider), "Create 10 school-level multiple-choice questions from the study material. Do not repeat these previously used questions: " + (0 until (data.entries("quizzes").length() + data.entries("masteredQuizzes").length())).mapNotNull { i -> (data.entries("quizzes").optJSONObject(i) ?: data.entries("masteredQuizzes").optJSONObject(i - data.entries("quizzes").length()))?.optString("title") }.joinToString(" | ").take(7000) + ". Return ONLY a valid JSON array. Each item must contain question (string), choices (array of exactly four short strings), answer (one exact choice string), and explanation (string). Exactly one correct answer per question. No markdown or text outside JSON.", contextText)
                                 val start = raw.indexOf('['); val end = raw.lastIndexOf(']')
                                 if (start < 0 || end <= start) throw Exception("The AI returned an invalid quiz format. Try again.")
                                 val generated = JSONArray(raw.substring(start, end + 1))
                                 var added = 0
+                                val seenQuestions = mutableSetOf<String>()
+                                for (bucket in listOf("quizzes", "masteredQuizzes")) {
+                                    val existing = data.entries(bucket)
+                                    for (j in 0 until existing.length()) existing.optJSONObject(j)?.optString("title")?.trim()?.lowercase()?.let(seenQuestions::add)
+                                }
                                 for (i in 0 until generated.length()) {
                                     val item = generated.optJSONObject(i) ?: continue
                                     val options = item.optJSONArray("choices") ?: item.optJSONArray("options")
@@ -519,7 +537,7 @@ private fun IdwApp() {
                                             ?.let { choiceValues.getOrNull(it[0] - 'A') }
                                     val questionText = item.optString("question").trim()
                                     if (questionText.isNotBlank() && choiceValues.size == 4 && choiceValues.all { it.isNotBlank() } && uniqueChoices && correctChoice != null) {
-                                        val duplicate = (0 until data.entries("quizzes").length()).any { data.entries("quizzes").optJSONObject(it)?.optString("title")?.trim()?.equals(questionText, true) == true }
+                                        val duplicate = !seenQuestions.add(questionText.lowercase())
                                         if (!duplicate) {
                                             val normalized = JSONObject(item.toString()).put("question", questionText)
                                                 .put("choices", JSONArray(choiceValues)).put("answer", correctChoice)
@@ -896,6 +914,16 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
     var knownOnly by remember { mutableStateOf(false) }
     val allCards = (0 until cards.length()).mapNotNull { cards.optJSONObject(it) }
     val items = allCards.filter { if (savedOnly) it.optBoolean("saved") else !it.optBoolean("known") }
+    var previousQueueSize by remember { mutableIntStateOf(items.size) }
+    var autoGeneratedForRefresh by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(refresh, items.size, savedOnly, knownOnly) {
+        if (!savedOnly && !knownOnly && allCards.isNotEmpty() && items.isEmpty() &&
+            previousQueueSize > 0 && autoGeneratedForRefresh != refresh) {
+            autoGeneratedForRefresh = refresh
+            onGenerate()
+        }
+        previousQueueSize = items.size
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().imePadding(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
@@ -989,7 +1017,7 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { onKnown(card.optString("id"), true); if (!card.optBoolean("known") && items.size == 1) onGenerate() }, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { onKnown(card.optString("id"), true) }, modifier = Modifier.weight(1f)) {
                         Icon(if (card.optBoolean("known")) Icons.Rounded.CheckCircle else Icons.Rounded.Replay, null)
                         Spacer(Modifier.width(6.dp)); Text(if (card.optBoolean("known")) "Known" else "Mark known")
                     }
@@ -1157,6 +1185,16 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
     var celebration by remember { mutableIntStateOf(0) }
     val allQuestions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
     val questions = allQuestions.filter { (!savedOnly || it.optBoolean("saved")) && (savedOnly || !it.optBoolean("known")) && (!wrongOnly || it.optBoolean("wrong")) }
+    var previousQueueSize by remember { mutableIntStateOf(questions.size) }
+    var autoGeneratedForRefresh by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(refresh, questions.size, savedOnly, wrongOnly) {
+        if (!savedOnly && !wrongOnly && allQuestions.isNotEmpty() && questions.isEmpty() &&
+            previousQueueSize > 0 && autoGeneratedForRefresh != refresh) {
+            autoGeneratedForRefresh = refresh
+            onGenerate()
+        }
+        previousQueueSize = questions.size
+    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
         Text("MCQ practice", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
@@ -1203,7 +1241,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                                 selectedAnswer = option
                                 onWrong(question.optString("id"), !isCorrect)
                                 onResult(question.optString("id"), isCorrect)
-                                if (isCorrect) { score++; celebration++; if (questions.size == 1) onGenerate() }
+                                if (isCorrect) { score++; celebration++ }
                             }
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
