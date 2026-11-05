@@ -1207,7 +1207,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Score: $score", color = Muted, fontSize = 11.sp)
                 Spacer(Modifier.weight(1f))
-                Button(onClick = { if (index < questions.lastIndex) index++ else { index = 0; score = 0 }; selectedAnswer = "" }, enabled = selectedAnswer.isNotBlank() && choices.size == 4, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
+                Button(onClick = { if (selectedAnswer != correctAnswer) { if (index < questions.lastIndex) index++ else { index = 0; score = 0 } }; selectedAnswer = "" }, enabled = selectedAnswer.isNotBlank() && choices.size == 4, shape = RoundedCornerShape(12.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Ink)) {
                     Text(if (index == questions.lastIndex) "Restart quiz" else "Next question")
                 }
             }
