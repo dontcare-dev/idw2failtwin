@@ -76,9 +76,78 @@ private fun worldRegions(): List<WorldRegion> = listOf(
     ))
 )
 
+ 
+private fun worldExtraActivities(regionId: String): List<WorldActivity> = when (regionId) {
+    "math" -> listOf(
+        WorldActivity("math_percent", "Percentage Market", "Number challenge", "5 min", "Percent means per hundred. It is a useful way to compare parts of a whole.", listOf("10% means 10 out of every 100.", "To find 20% of 50, calculate 0.20 × 50.", "A percentage can be greater than 100%."), "What is 25% of 80?", listOf("10", "15", "20", "25"), 2, "25% is one quarter. 80 ÷ 4 = 20."),
+        WorldActivity("math_patterns", "Pattern Observatory", "Logic puzzle", "4 min", "A sequence follows a rule. Find the rule to predict the next term.", listOf("Compare neighbouring terms.", "Check whether the same amount is added or multiplied.", "Apply the rule to the last term."), "What comes next: 3, 6, 12, 24, ...?", listOf("30", "36", "42", "48"), 3, "Each term doubles, so 24 × 2 = 48.")
+    )
+    "science" -> listOf(
+        WorldActivity("science_energy", "Energy Transfer", "Physics lesson", "6 min", "Energy can be transferred between objects and transformed from one form to another.", listOf("Kinetic energy is associated with motion.", "Gravitational potential energy depends on position in a gravitational field.", "Energy is conserved in a closed system."), "Which energy store increases when a ball is lifted higher?", listOf("Chemical", "Gravitational potential", "Sound", "Nuclear"), 1, "Raising the ball increases its gravitational potential energy."),
+        WorldActivity("science_ecosystem", "Ecosystem Quest", "Biology challenge", "5 min", "An ecosystem includes living organisms and the non-living parts of their environment.", listOf("Producers make their own food, usually using sunlight.", "Consumers obtain energy by eating other organisms.", "Decomposers recycle nutrients from dead matter."), "Which organism is a producer?", listOf("Grass", "Rabbit", "Fox", "Mushroom"), 0, "Grass makes its own food through photosynthesis.")
+    )
+    "language" -> listOf(
+        WorldActivity("language_reading", "Reading Compass", "Reading skill", "5 min", "The main idea is the central point a passage communicates.", listOf("Read the complete passage.", "Notice repeated ideas and topic sentences.", "Separate the main idea from supporting details."), "What best describes a supporting detail?", listOf("The central message", "A fact that develops the main idea", "The title only", "An unrelated opinion"), 1, "Supporting details explain, illustrate or provide evidence for the main idea."),
+        WorldActivity("language_punctuation", "Punctuation Studio", "Grammar challenge", "4 min", "Punctuation helps readers understand pauses, sentence structure and meaning.", listOf("A full stop ends a statement.", "A question mark ends a direct question.", "An apostrophe can show possession or a contraction."), "Which sentence uses punctuation correctly?", listOf("Where are you.", "Its raining!", "Where are you?", "I like apples,"), 2, "A direct question ends with a question mark.")
+    )
+    "history" -> listOf(
+        WorldActivity("history_timeline", "Timeline Architect", "Chronology", "5 min", "Chronology means arranging events in the order they happened.", listOf("Record the date of each event.", "Place the earliest event first.", "Use a consistent scale when drawing a timeline."), "Which event belongs first on a timeline?", listOf("An event from 1900", "An event from 1750", "An event from 2000", "An event from 1950"), 1, "1750 is the earliest date listed."),
+        WorldActivity("history_civilisations", "Civilisation Clues", "Historical inquiry", "6 min", "Archaeologists study material remains to learn about past societies.", listOf("Artifacts are objects made or used by people.", "Buildings can reveal technology and social organisation.", "Evidence needs context before drawing conclusions."), "What is an artifact?", listOf("A natural cloud", "An object made or used by people", "A modern prediction", "A weather pattern"), 1, "An artifact is a human-made or human-used object from the past.")
+    )
+    "geography" -> listOf(
+        WorldActivity("geography_climate", "Climate Tracker", "Earth systems", "5 min", "Weather describes short-term atmospheric conditions; climate describes long-term patterns.", listOf("Weather can change from hour to hour.", "Climate is studied over many years.", "Latitude, altitude and oceans influence climate."), "Which describes climate?", listOf("Today's rainfall", "This afternoon's temperature", "A region's typical conditions over decades", "A single thunderstorm"), 2, "Climate describes long-term patterns, not a single day's weather."),
+        WorldActivity("geography_landforms", "Landform Expedition", "Physical geography", "5 min", "Landforms are natural features of Earth's surface.", listOf("Mountains are elevated areas with steep slopes.", "Plains are broad areas of relatively level land.", "Valleys are low areas between hills or mountains."), "Which landform is generally broad and relatively flat?", listOf("Plain", "Mountain", "Cliff", "Volcano"), 0, "A plain is a large area of relatively level land.")
+    )
+    "coding" -> listOf(
+        WorldActivity("coding_variables", "Variable Vault", "Programming concepts", "5 min", "A variable is a named place to store a value that a program can use.", listOf("A variable has a name.", "Its value can be read by the program.", "In many languages, a variable can be updated."), "If score = 12 and then score = score + 3, what is score?", listOf("9", "12", "15", "36"), 2, "The new value is the old value plus 3: 12 + 3 = 15."),
+        WorldActivity("coding_debug", "Debugging Workshop", "Problem-solving", "5 min", "Debugging is the process of finding and correcting problems in a program.", listOf("Reproduce the problem reliably.", "Read the error and inspect the relevant code.", "Change one thing at a time and test again."), "What is the best first step when a bug appears?", listOf("Delete the project", "Reproduce and understand the problem", "Ignore the error", "Rewrite everything immediately"), 1, "First reproduce the issue so you can investigate its cause.")
+    )
+    else -> emptyList()
+}
+
+@Composable
+private fun WorldSimulationStudio() {
+    var mass by remember { mutableFloatStateOf(2f) }
+    var acceleration by remember { mutableFloatStateOf(3f) }
+    var voltage by remember { mutableFloatStateOf(6f) }
+    var resistance by remember { mutableFloatStateOf(3f) }
+    var length by remember { mutableFloatStateOf(8f) }
+    var width by remember { mutableFloatStateOf(4f) }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(WorldPanel).padding(15.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Tune, null, tint = WorldViolet)
+            Text("Simulation Studio", Modifier.padding(start = 8.dp), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
+        Text("Change the values and see how the result changes.", color = WorldMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
+        Text("Physics · Newton's second law", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text("Force = mass × acceleration", color = WorldMuted, fontSize = 10.sp)
+        Text("Mass: ${"%.1f".format(mass)} kg", fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+        Slider(value = mass, onValueChange = { mass = it }, valueRange = 0.5f..10f)
+        Text("Acceleration: ${"%.1f".format(acceleration)} m/s²", fontSize = 11.sp)
+        Slider(value = acceleration, onValueChange = { acceleration = it }, valueRange = 0.5f..10f)
+        Text("Result: ${"%.1f".format(mass * acceleration)} N", color = WorldMint, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = WorldInk.copy(alpha = .10f))
+        Text("Electricity · Ohm's law", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text("Current = voltage ÷ resistance", color = WorldMuted, fontSize = 10.sp)
+        Text("Voltage: ${"%.1f".format(voltage)} V", fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+        Slider(value = voltage, onValueChange = { voltage = it }, valueRange = 1f..24f)
+        Text("Resistance: ${"%.1f".format(resistance)} Ω", fontSize = 11.sp)
+        Slider(value = resistance, onValueChange = { resistance = it }, valueRange = 1f..12f)
+        Text("Result: ${"%.2f".format(voltage / resistance)} A", color = WorldMint, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = WorldInk.copy(alpha = .10f))
+        Text("Geometry · Rectangle area", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text("Area = length × width", color = WorldMuted, fontSize = 10.sp)
+        Text("Length: ${"%.1f".format(length)} units", fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+        Slider(value = length, onValueChange = { length = it }, valueRange = 1f..20f)
+        Text("Width: ${"%.1f".format(width)} units", fontSize = 11.sp)
+        Slider(value = width, onValueChange = { width = it }, valueRange = 1f..20f)
+        Text("Result: ${"%.1f".format(length * width)} square units", color = WorldMint, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
 @Composable
 fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, onOpenMochi: () -> Unit) {
-    val regions = remember { worldRegions() }
+    val regions = remember { worldRegions().map { it.copy(activities = it.activities + worldExtraActivities(it.id)) } }
     var selectedRegion by remember { mutableStateOf<String?>(null) }
     var selectedActivity by remember { mutableStateOf<WorldActivity?>(null) }
     var chosen by remember { mutableIntStateOf(-1) }
@@ -181,6 +250,8 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
             LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(6.dp).clip(CircleShape), color = Color(0xFF9AD9C6), trackColor = Color.White.copy(alpha = .18f))
             Text("Progress is saved on this device. No points or streak pressure.", color = Color.White.copy(alpha = .68f), fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
         }
+        Text("Explore and experiment", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+        WorldSimulationStudio()
         Text("Explore regions", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
         regions.forEachIndexed { index, item ->
             val count = item.activities.count { it.id in completed }
