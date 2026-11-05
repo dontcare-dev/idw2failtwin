@@ -56,7 +56,7 @@ private data class WorldRegion(
 
 private fun validateWorldRegistry(regions: List<WorldRegion>) {
     require(regions.map { it.id }.distinct().size == regions.size) { "World region IDs must be unique." }
-    val activities = regions.flatMap { it.activities + worldExtraActivities(it.id) }
+    val activities = regions.flatMap { it.activities }
     require(activities.map { it.id }.distinct().size == activities.size) { "World activity IDs must be unique." }
     activities.forEach { activity ->
         require(activity.title.isNotBlank() && activity.intro.isNotBlank()) { "World activities need a title and introduction." }
