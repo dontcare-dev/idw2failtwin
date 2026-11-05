@@ -84,7 +84,7 @@ fun StudyIntelligenceScreen(
                 }
             }
         }
-        SectionHeading("Smart revision", "Your unfinished review queue")
+        SectionHeading("Revision queue", "Unmastered flashcards and unfinished study tasks")
         Column(Modifier.fillMaxWidth().background(Color(0xFFF5F6F8), RoundedCornerShape(15.dp)).padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Style, null, tint = Color(0xFF6950A1))
@@ -106,9 +106,9 @@ fun StudyIntelligenceScreen(
                 TextButton(onClick = onOpenPlanner) { Text("Open") }
             }
         }
-        SectionHeading("Exam simulator", "Practise under exam conditions")
+        SectionHeading("Mock exam builder", "Generate a full paper from your imported material")
         Column(Modifier.fillMaxWidth().background(Color(0xFFF5F6F8), RoundedCornerShape(15.dp)).padding(14.dp)) {
-            Text("Build a full mock paper from your imported study material, then review your performance.", color = Color(0xFF68717D), fontSize = 11.sp, lineHeight = 17.sp)
+            Text("Generate a printable mock paper from your imported study material. The current exam feature creates a PDF paper rather than running a timed in-app test.", color = Color(0xFF68717D), fontSize = 11.sp, lineHeight = 17.sp)
             Button(onClick = onOpenExams, modifier = Modifier.fillMaxWidth().padding(top = 9.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF17191D), contentColor = Color.White), shape = RoundedCornerShape(12.dp)) {
                 Icon(Icons.Rounded.Timer, null); Spacer(Modifier.width(7.dp)); Text("Open exam simulator")
             }
