@@ -125,17 +125,40 @@ private class LocalData(context: android.content.Context) {
         d.put("documents", list); write(d)
     }
     fun setQuizResult(id: String, correct: Boolean) {
-        val d = read(); val list = d.optJSONArray("quizzes") ?: JSONArray()
+        val d = read(); val list = d.optJSONArray("quizzes") ?: JSONArray(); val next = JSONArray()
         for (i in 0 until list.length()) {
-            val item = list.optJSONObject(i)
-            if (item?.optString("id") == id) {
+            val item = list.optJSONObject(i) ?: continue
+            if (item.optString("id") == id) {
                 item.put("attempted", true)
                 item.put("lastCorrect", correct)
                 item.put("attemptCount", item.optInt("attemptCount") + 1)
-                if (!correct) item.put("wrong", true)
+                if (correct) {
+                    item.put("known", true)
+                    item.put("wrong", false)
+                    if (!item.optBoolean("saved")) {
+                        d.put("masteredQuizCount", d.optInt("masteredQuizCount") + 1)
+                        continue
+                    }
+                } else item.put("wrong", true)
             }
+            next.put(item)
         }
-        d.put("quizzes", list); write(d)
+        d.put("quizzes", next); write(d)
+    }
+    fun markFlashcardKnown(id: String, known: Boolean) {
+        val d = read(); val list = d.optJSONArray("flashcards") ?: JSONArray(); val next = JSONArray()
+        for (i in 0 until list.length()) {
+            val item = list.optJSONObject(i) ?: continue
+            if (item.optString("id") == id) {
+                if (known && !item.optBoolean("saved")) {
+                    d.put("masteredFlashcardCount", d.optInt("masteredFlashcardCount") + 1)
+                    continue
+                }
+                item.put("known", known)
+            }
+            next.put(item)
+        }
+        d.put("flashcards", next); write(d)
     }
     fun removeDocument(id: String) {
         val d = read(); val old = d.optJSONArray("documents") ?: JSONArray(); val next = JSONArray()
@@ -428,7 +451,7 @@ private fun IdwApp() {
                     onAdd = { front, back -> data.addEntry("flashcards", front, back); refresh++ },
                     onDelete = { data.removeEntry("flashcards", it); refresh++ },
                     onSave = { id, saved -> data.setSaved("flashcards", id, saved); refresh++ },
-                    onKnown = { id, known -> data.setFlag("flashcards", id, "known", known); refresh++ }
+                    onKnown = { id, known -> data.markFlashcardKnown(id, known); refresh++ }
                 )
                 "More" -> MoreScreen(
                     taskCount = data.entries("tasks").length(),
@@ -844,7 +867,7 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
     var savedOnly by remember { mutableStateOf(false) }
     var knownOnly by remember { mutableStateOf(false) }
     val allCards = (0 until cards.length()).mapNotNull { cards.optJSONObject(it) }
-    val items = allCards.filter { (!savedOnly || it.optBoolean("saved")) && (!knownOnly || !it.optBoolean("known")) }
+    val items = allCards.filter { if (savedOnly) it.optBoolean("saved") else !it.optBoolean("known") }
     LazyColumn(
         modifier = Modifier.fillMaxSize().imePadding(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
@@ -938,7 +961,7 @@ private fun PracticeScreen(cards: JSONArray, refresh: Int, generating: Boolean, 
             }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { onKnown(card.optString("id"), !card.optBoolean("known")) }, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { onKnown(card.optString("id"), true); if (!card.optBoolean("known") && items.size == 1) onGenerate() }, modifier = Modifier.weight(1f)) {
                         Icon(if (card.optBoolean("known")) Icons.Rounded.CheckCircle else Icons.Rounded.Replay, null)
                         Spacer(Modifier.width(6.dp)); Text(if (card.optBoolean("known")) "Known" else "Mark known")
                     }
@@ -1105,7 +1128,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
     var wrongOnly by remember { mutableStateOf(false) }
     var celebration by remember { mutableIntStateOf(0) }
     val allQuestions = (0 until quizzes.length()).mapNotNull { quizzes.optJSONObject(it) }
-    val questions = allQuestions.filter { (!savedOnly || it.optBoolean("saved")) && (!wrongOnly || it.optBoolean("wrong")) }
+    val questions = allQuestions.filter { (!savedOnly || it.optBoolean("saved")) && (savedOnly || !it.optBoolean("known")) && (!wrongOnly || it.optBoolean("wrong")) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp)) {
         Text("MCQ practice", fontSize = 28.sp, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)) {
@@ -1119,7 +1142,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
         }
         if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 9.dp))
         if (questions.isEmpty()) {
-            EmptyState(if (wrongOnly) "No mistakes to retry" else "No questions yet", if (wrongOnly) "Questions you answer incorrectly will appear here." else "Import a PDF and generate MCQs.", Icons.Rounded.Quiz)
+            EmptyState(if (wrongOnly) "No mistakes to retry" else "No questions yet", if (wrongOnly) "Questions you answer incorrectly will appear here." else "Generate a new set from your PDFs to start practising.", Icons.Rounded.Quiz)
         } else {
             val question = questions[index.coerceIn(0, questions.lastIndex)]
             val detail = runCatching { JSONObject(question.optString("body")) }.getOrElse { JSONObject() }
@@ -1152,7 +1175,7 @@ private fun QuizScreen(quizzes: JSONArray, refresh: Int, generating: Boolean, st
                                 selectedAnswer = option
                                 onWrong(question.optString("id"), !isCorrect)
                                 onResult(question.optString("id"), isCorrect)
-                                if (isCorrect) { score++; celebration++ }
+                                if (isCorrect) { score++; celebration++; if (questions.size == 1) onGenerate() }
                             }
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
