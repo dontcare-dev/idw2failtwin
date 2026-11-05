@@ -2,8 +2,12 @@ package com.idw2fail.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -103,6 +107,36 @@ private fun worldExtraActivities(regionId: String): List<WorldActivity> = when (
         WorldActivity("coding_debug", "Debugging Workshop", "Problem-solving", "5 min", "Debugging is the process of finding and correcting problems in a program.", listOf("Reproduce the problem reliably.", "Read the error and inspect the relevant code.", "Change one thing at a time and test again."), "What is the best first step when a bug appears?", listOf("Delete the project", "Reproduce and understand the problem", "Ignore the error", "Rewrite everything immediately"), 1, "First reproduce the issue so you can investigate its cause.")
     )
     else -> emptyList()
+}
+
+@Composable
+private fun WorldMapPreview(regions: List<WorldRegion>, completed: Set<String>, onSelect: (String) -> Unit) {
+    val nodes = listOf(
+        Triple("math", .18f, .23f), Triple("science", .53f, .13f),
+        Triple("history", .82f, .34f), Triple("language", .24f, .72f),
+        Triple("geography", .58f, .78f), Triple("coding", .86f, .73f)
+    )
+    BoxWithConstraints(Modifier.fillMaxWidth().height(270.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFFE9EDF2))) {
+        Canvas(Modifier.fillMaxSize()) {
+            val pts = nodes.map { Offset(size.width * it.second, size.height * it.third) }
+            val links = listOf(0 to 1, 1 to 2, 0 to 3, 3 to 4, 4 to 5, 1 to 4, 2 to 5)
+            links.forEach { (a, b) ->
+                drawLine(Color(0xFF9AA5B3), pts[a], pts[b], strokeWidth = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            drawCircle(Color.White.copy(alpha = .55f), radius = 75.dp.toPx(), center = Offset(size.width * .5f, size.height * .48f))
+        }
+        nodes.forEach { (id, x, y) ->
+            val item = regions.first { it.id == id }
+            val isDone = item.activities.isNotEmpty() && item.activities.all { it.id in completed }
+            val short = when (id) { "geography" -> "Geo"; "language" -> "Words"; else -> item.name.substringBefore(" ") }
+            Column(Modifier.offset(x = maxWidth * x - 34.dp, y = maxHeight * y - 24.dp).width(78.dp).clip(RoundedCornerShape(14.dp)).background(Color.White).clickable { onSelect(id) }.border(1.dp, if (isDone) WorldMint else Color(0xFFD5DAE2), RoundedCornerShape(14.dp)).padding(vertical = 8.dp, horizontal = 5.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(item.symbol, color = WorldViolet, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(short, color = WorldInk, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Text(if (isDone) "Complete" else "${item.activities.count { it.id in completed }}/${item.activities.size}", color = if (isDone) WorldMint else WorldMuted, fontSize = 8.sp)
+            }
+        }
+        Text("TAP A REGION TO EXPLORE", color = WorldMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp))
+    }
 }
 
 @Composable
@@ -252,6 +286,8 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
             LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(6.dp).clip(CircleShape), color = Color(0xFF9AD9C6), trackColor = Color.White.copy(alpha = .18f))
             Text("Progress is saved on this device. No points or streak pressure.", color = Color.White.copy(alpha = .68f), fontSize = 10.sp, modifier = Modifier.padding(top = 9.dp))
         }
+        Text("Your learning map", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
+        WorldMapPreview(regions, completed) { selectedRegion = it }
         Text("Explore and experiment", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
         WorldSimulationStudio()
         Text("Explore regions", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
