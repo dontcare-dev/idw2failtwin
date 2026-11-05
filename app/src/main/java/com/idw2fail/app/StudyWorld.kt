@@ -186,6 +186,7 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
     var selectedActivity by remember { mutableStateOf<WorldActivity?>(null) }
     var chosen by remember { mutableIntStateOf(-1) }
     var checked by remember { mutableStateOf(false) }
+    var hintVisible by remember { mutableStateOf(false) }
     var completedPulse by remember { mutableIntStateOf(0) }
     var worldSearch by remember { mutableStateOf("") }
     val completed = remember(progress, completedPulse) {
@@ -199,7 +200,7 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 8.dp)) {
         if (activity != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { selectedActivity = null; chosen = -1; checked = false }) { Icon(Icons.Rounded.ArrowBack, "Back") }
+                IconButton(onClick = { selectedActivity = null; chosen = -1; checked = false; hintVisible = false }) { Icon(Icons.Rounded.ArrowBack, "Back") }
                 Column(Modifier.weight(1f)) {
                     Text(activity.kind.uppercase(), color = WorldViolet, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
                     Text(activity.title, fontSize = 21.sp, fontWeight = FontWeight.Bold)
@@ -207,6 +208,8 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
                 Text(activity.duration, color = WorldMuted, fontSize = 11.sp)
             }
             Text(activity.intro, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 14.dp))
+            OutlinedButton(onClick = { hintVisible = !hintVisible }, modifier = Modifier.padding(top = 8.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)) { Icon(Icons.Rounded.Lightbulb, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text(if (hintVisible) "Hide hint" else "Show a hint", fontSize = 11.sp) }
+            if (hintVisible) Text("Hint: ${activity.steps.firstOrNull() ?: "Review the lesson above and look for the key idea."}", color = WorldViolet, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.fillMaxWidth().padding(top = 5.dp).background(WorldViolet.copy(alpha = .07f), RoundedCornerShape(10.dp)).padding(11.dp))
             activity.steps.forEachIndexed { index, step ->
                 Row(Modifier.fillMaxWidth().padding(top = 9.dp).background(WorldPanel, RoundedCornerShape(13.dp)).padding(13.dp), verticalAlignment = Alignment.Top) {
                     Box(Modifier.size(25.dp).clip(CircleShape).background(WorldInk), contentAlignment = Alignment.Center) { Text("${index + 1}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
@@ -254,7 +257,7 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
             Text(region.subtitle, color = WorldMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
             region.activities.forEach { item ->
                 val isDone = item.id in completed
-                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(15.dp)).background(WorldPanel).clickable { selectedActivity = item }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(15.dp)).background(WorldPanel).clickable { selectedActivity = item; chosen = -1; checked = false; hintVisible = false }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(39.dp).clip(RoundedCornerShape(12.dp)).background(Color.White), contentAlignment = Alignment.Center) { Icon(if (isDone) Icons.Rounded.CheckCircle else Icons.Rounded.PlayCircleOutline, null, tint = if (isDone) WorldMint else WorldInk, modifier = Modifier.size(23.dp)) }
                     Column(Modifier.weight(1f).padding(start = 11.dp)) {
                         Text(item.title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
