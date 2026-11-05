@@ -147,6 +147,8 @@ private fun WorldSimulationStudio() {
     var resistance by remember { mutableFloatStateOf(3f) }
     var length by remember { mutableFloatStateOf(8f) }
     var width by remember { mutableFloatStateOf(4f) }
+    var slope by remember { mutableFloatStateOf(1f) }
+    var intercept by remember { mutableFloatStateOf(0f) }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(WorldPanel).padding(15.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Tune, null, tint = WorldViolet)
@@ -176,6 +178,41 @@ private fun WorldSimulationStudio() {
         Text("Width: ${"%.1f".format(width)} units", fontSize = 11.sp)
         Slider(value = width, onValueChange = { width = it }, valueRange = 1f..20f)
         Text("Result: ${"%.1f".format(length * width)} square units", color = WorldMint, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = WorldInk.copy(alpha = .10f))
+        Text("Mathematics · Graph Explorer", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text("Explore y = mx + c. Change the slope and intercept to reshape the line.", color = WorldMuted, fontSize = 10.sp, lineHeight = 15.sp)
+        Text("Slope (m): ${"%.1f".format(slope)}", fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+        Slider(value = slope, onValueChange = { slope = it }, valueRange = -2f..2f)
+        Text("Intercept (c): ${"%.1f".format(intercept)}", fontSize = 11.sp)
+        Slider(value = intercept, onValueChange = { intercept = it }, valueRange = -5f..5f)
+        Canvas(Modifier.fillMaxWidth().height(170.dp).padding(top = 8.dp).clip(RoundedCornerShape(12.dp)).background(Color.White)) {
+            val left = 20.dp.toPx()
+            val right = size.width - 12.dp.toPx()
+            val top = 10.dp.toPx()
+            val bottom = size.height - 18.dp.toPx()
+            val centerX = (left + right) / 2f
+            val centerY = (top + bottom) / 2f
+            val scaleX = (right - left) / 10f
+            val scaleY = (bottom - top) / 12f
+            drawLine(WorldMuted.copy(alpha = .55f), Offset(left, centerY), Offset(right, centerY), strokeWidth = 1.5.dp.toPx())
+            drawLine(WorldMuted.copy(alpha = .55f), Offset(centerX, top), Offset(centerX, bottom), strokeWidth = 1.5.dp.toPx())
+            for (tick in -5..5) {
+                val x = centerX + tick * scaleX
+                val y = centerY - tick * scaleY
+                drawLine(WorldMuted.copy(alpha = .18f), Offset(x, top), Offset(x, bottom), strokeWidth = 1.dp.toPx())
+                drawLine(WorldMuted.copy(alpha = .18f), Offset(left, y), Offset(right, y), strokeWidth = 1.dp.toPx())
+            }
+            val graph = Path()
+            for (step in 0..100) {
+                val xValue = -5f + step / 10f
+                val yValue = slope * xValue + intercept
+                val px = centerX + xValue * scaleX
+                val py = centerY - yValue * scaleY
+                if (step == 0) graph.moveTo(px, py) else graph.lineTo(px, py)
+            }
+            drawPath(graph, WorldViolet, style = Stroke(width = 3.dp.toPx()))
+        }
+        Text("At x = 0, y = ${"%.1f".format(intercept)}. The slope tells how much y changes when x increases by 1.", color = WorldMuted, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 8.dp))
     }
 }
 
