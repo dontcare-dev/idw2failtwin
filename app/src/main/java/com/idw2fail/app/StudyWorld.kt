@@ -54,6 +54,18 @@ private data class WorldRegion(
     val activities: List<WorldActivity>
 )
 
+private fun validateWorldRegistry(regions: List<WorldRegion>) {
+    require(regions.map { it.id }.distinct().size == regions.size) { "World region IDs must be unique." }
+    val activities = regions.flatMap { it.activities + worldExtraActivities(it.id) }
+    require(activities.map { it.id }.distinct().size == activities.size) { "World activity IDs must be unique." }
+    activities.forEach { activity ->
+        require(activity.title.isNotBlank() && activity.intro.isNotBlank()) { "World activities need a title and introduction." }
+        require(activity.steps.isNotEmpty()) { "World activities need at least one learning step." }
+        require(activity.options.size >= 2 && activity.answer in activity.options.indices) { "World activity answer is invalid." }
+        require(activity.explanation.isNotBlank()) { "World activities need an explanation." }
+    }
+}
+
 private fun worldRegions(): List<WorldRegion> = listOf(
     WorldRegion("math", "Math Island", "Patterns, numbers and visual problem-solving", "∑", listOf(
         WorldActivity("math_fractions", "Fraction Kitchen", "Interactive lesson", "6 min", "Fractions describe equal parts of a whole. Imagine sharing one pizza fairly.", listOf("The denominator tells how many equal parts make the whole.", "The numerator tells how many of those parts you have.", "Equivalent fractions name the same amount, such as 1/2 and 2/4."), "Which fraction is equal to 1/2?", listOf("2/3", "2/4", "3/4", "1/3"), 1, "2/4 simplifies to 1/2 because both numbers divide by 2."),
@@ -218,7 +230,10 @@ private fun WorldSimulationStudio() {
 
 @Composable
 fun StudyWorldScreen(progress: JSONArray, attempts: JSONArray, onAttempt: (String, String, Boolean) -> Unit, onComplete: (String, String) -> Unit, onOpenMochi: (String) -> Unit) {
-    val regions = remember { worldRegions().map { it.copy(activities = it.activities + worldExtraActivities(it.id)) } }
+    val regions = remember {
+        worldRegions().map { it.copy(activities = it.activities + worldExtraActivities(it.id)) }
+            .also(::validateWorldRegistry)
+    }
     var selectedRegion by remember { mutableStateOf<String?>(null) }
     var selectedActivity by remember { mutableStateOf<WorldActivity?>(null) }
     var chosen by remember { mutableIntStateOf(-1) }
