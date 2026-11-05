@@ -153,6 +153,7 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
     var chosen by remember { mutableIntStateOf(-1) }
     var checked by remember { mutableStateOf(false) }
     var completedPulse by remember { mutableIntStateOf(0) }
+    var worldSearch by remember { mutableStateOf("") }
     val completed = remember(progress, completedPulse) {
         (0 until progress.length()).mapNotNull { progress.optJSONObject(it)?.optString("activityId") }.toSet()
     }
@@ -239,6 +240,7 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
             }
             IconButton(onClick = onOpenMochi) { Icon(Icons.Rounded.AutoAwesome, "Ask Mochi", tint = WorldViolet) }
         }
+        OutlinedTextField(value = worldSearch, onValueChange = { worldSearch = it }, modifier = Modifier.fillMaxWidth().padding(top = 14.dp), placeholder = { Text("Find a topic or region…", fontSize = 12.sp) }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, singleLine = true, shape = RoundedCornerShape(14.dp))
         Column(Modifier.fillMaxWidth().padding(top = 17.dp).clip(RoundedCornerShape(18.dp)).background(WorldInk).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -253,7 +255,9 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
         Text("Explore and experiment", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
         WorldSimulationStudio()
         Text("Explore regions", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 9.dp))
-        regions.forEachIndexed { index, item ->
+        val visibleRegions = regions.filter { regionItem -> worldSearch.isBlank() || regionItem.name.contains(worldSearch, true) || regionItem.subtitle.contains(worldSearch, true) || regionItem.activities.any { it.title.contains(worldSearch, true) || it.kind.contains(worldSearch, true) } }
+        if (visibleRegions.isEmpty()) Text("No matching topics. Try another search.", color = WorldMuted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 18.dp))
+        visibleRegions.forEach { item ->
             val count = item.activities.count { it.id in completed }
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(16.dp)).background(WorldPanel).clickable { selectedRegion = item.id }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color.White), contentAlignment = Alignment.Center) { Text(item.symbol, color = WorldViolet, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
