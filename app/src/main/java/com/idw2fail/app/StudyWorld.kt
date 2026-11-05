@@ -146,7 +146,7 @@ private fun WorldSimulationStudio() {
 }
 
 @Composable
-fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, onOpenMochi: () -> Unit) {
+fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, onOpenMochi: (String) -> Unit) {
     val regions = remember { worldRegions().map { it.copy(activities = it.activities + worldExtraActivities(it.id)) } }
     var selectedRegion by remember { mutableStateOf<String?>(null) }
     var selectedActivity by remember { mutableStateOf<WorldActivity?>(null) }
@@ -238,7 +238,7 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
                 Text("Study World", fontSize = 29.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.7).sp)
                 Text("A place to explore what you're learning.", color = WorldMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
             }
-            IconButton(onClick = onOpenMochi) { Icon(Icons.Rounded.AutoAwesome, "Ask Mochi", tint = WorldViolet) }
+            IconButton(onClick = { onOpenMochi("Help me choose a topic to study in SDS Study World. Explain the key ideas simply and give me a short practice question.") }) { Icon(Icons.Rounded.AutoAwesome, "Ask Mochi", tint = WorldViolet) }
         }
         OutlinedTextField(value = worldSearch, onValueChange = { worldSearch = it }, modifier = Modifier.fillMaxWidth().padding(top = 14.dp), placeholder = { Text("Find a topic or region…", fontSize = 12.sp) }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, singleLine = true, shape = RoundedCornerShape(14.dp))
         Column(Modifier.fillMaxWidth().padding(top = 17.dp).clip(RoundedCornerShape(18.dp)).background(WorldInk).padding(16.dp)) {
@@ -269,6 +269,6 @@ fun StudyWorldScreen(progress: JSONArray, onComplete: (String, String) -> Unit, 
                 Icon(Icons.Rounded.ChevronRight, null, tint = WorldMuted)
             }
         }
-        OutlinedButton(onClick = onOpenMochi, modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp)) { Icon(Icons.Rounded.AutoAwesome, null); Spacer(Modifier.width(7.dp)); Text("Ask Mochi about a topic") }
+        OutlinedButton(onClick = { onOpenMochi("Help me explore the topics in SDS Study World. Suggest a beginner-friendly learning path and explain the first concept.") }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 24.dp)) { Icon(Icons.Rounded.AutoAwesome, null); Spacer(Modifier.width(7.dp)); Text("Ask Mochi about a topic") }
     }
 }
